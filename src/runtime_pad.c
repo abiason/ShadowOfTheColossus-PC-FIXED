@@ -553,9 +553,19 @@ static ABI int32_t pad_info(int32_t handle, ControllerInfo *info) {
 static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
     if (handle!=PAD_HANDLE || !opened) return ERR_INVALID_HANDLE;
     if (!param) return ERR_INVALID_ARG;
+    /* sotc: SOTC_VIBRATION=0..100 (launcher's Vibration slider) scales the strength; 0 is off. */
+    static int percent=-1;
+    if (percent<0) {
+        const char *v=getenv("SOTC_VIBRATION");
+        percent=v ? atoi(v) : 100;
+        if (percent<0) percent=0;
+        if (percent>100) percent=100;
+    }
+    const int live=bbgpu_vibration_override(); /* in-game menu */
+    const int strength=live>=0 && live<=100 ? live : percent;
     pthread_mutex_lock(&lock);
     SDL_Gamepad *g=current_gamepad();
-    if (g) SDL_RumbleGamepad(g,(uint16_t)(param[0]*257),(uint16_t)(param[1]*257),1000);
+    if (g) SDL_RumbleGamepad(g,(uint16_t)(param[0]*257*strength/100),(uint16_t)(param[1]*257*strength/100),1000);
     pthread_mutex_unlock(&lock);
     return 0;
 }

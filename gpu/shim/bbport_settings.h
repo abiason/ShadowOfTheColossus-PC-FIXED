@@ -67,6 +67,12 @@ struct Values {
     std::atomic<float> reactive_max{0.9f};
     std::atomic<int> debug_view{DebugNone};
     std::atomic<bool> show_fps{false};
+    // sotc: in-game menu (Insert / L2+R3): frame statistics under the FPS counter, and live
+    // overrides of the launcher's FSR 1 / RCAS / vibration choices (-1: keep the launcher's).
+    std::atomic<bool> show_stats{false};
+    std::atomic<int> sotc_fsr1{-1};
+    std::atomic<int> sotc_rcas{-1}; ///< RCAS attenuation x100 (0 sharpest), 1000 = off
+    std::atomic<int> vibration{-1}; ///< percent
     // FSR 4 checks (menu): the provider's auto exposure, the jitter sign it is given.
     std::atomic<bool> fsr4_auto_exposure{true};
     std::atomic<bool> fsr4_invert_jitter{false};

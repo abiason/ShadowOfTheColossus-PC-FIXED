@@ -23,6 +23,7 @@
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/texture_cache/image.h"
 #include "bbport_overlay.h"
+#include "bbport_settings.h"
 
 #include <algorithm>
 #include <array>
@@ -756,6 +757,16 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
                     vk::PipelineStageFlagBits2::eFragmentShader, vk::AccessFlagBits2::eShaderRead);
     runtime.FlushBarriers();
 
+    // sotc: the in-game menu can switch FSR 1 and RCAS while playing.
+    if (const int fsr = BbSettings::Get().sotc_fsr1.load(); fsr >= 0) {
+        fsr_settings.enable = fsr != 0;
+    }
+    if (const int rcas = BbSettings::Get().sotc_rcas.load(); rcas >= 0) {
+        fsr_settings.use_rcas = rcas < 1000;
+        if (rcas < 1000) {
+            fsr_settings.rcas_attenuation = float(rcas) / 100.0f;
+        }
+    }
     image_view = fsr_pass.Render(cmdbuf, image_view, image_size, {frame->width, frame->height},
                                  fsr_settings, frame->is_hdr);
 

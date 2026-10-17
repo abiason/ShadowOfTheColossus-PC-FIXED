@@ -45,6 +45,8 @@ int bbgpu_text_input_poll(char *out_utf8, uint64_t size);
 int bbgpu_mouse_take(float *dx, float *dy, unsigned *buttons);
 /* 1 while the in-game settings menu is open: the game's pad input is held neutral. */
 int bbgpu_overlay_captures_input(void);
+/* sotc: in-game menu vibration percent, or -1. */
+int bbgpu_vibration_override(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
 unsigned bbgpu_symbol_count(void);
 #ifdef __cplusplus
