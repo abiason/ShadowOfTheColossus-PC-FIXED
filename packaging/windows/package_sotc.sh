@@ -39,7 +39,9 @@ done
 cp scripts/prepare.py scripts/link_libc.py scripts/link_modules.py scripts/content_profile.py \
    scripts/sotc_cpu.py scripts/sotc_modes.py scripts/sotc_cache.py "$dest/scripts/"
 cp sotc.py SotC.bat LICENSE CHANGELOG.md "$dest/"
-cp docs/sotc/README-SotC.md "$dest/README.md"
+cp README.md "$dest/README.md"
+# sotc: release notes of this version next to the README.
+for notes in docs/releases/*.md; do cp "$notes" "$dest/NOTAS-$(basename "$notes")"; done
 cat > "$dest/sotc.ini" <<'EOF'
 # Shadow of the Colossus PC - settings (see README.md)
 # Folder of your game dump (the one with eboot.bin):
