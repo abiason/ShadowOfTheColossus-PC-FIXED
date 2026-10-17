@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Shadow of the Colossus launcher for Windows (Tkinter), modelled on bbport_launcher_win.py.
+"""Shadow of the Colossus launcher for Windows (Tkinter), derived from the bbport launcher.
 
 One window for the port's settings: the game dump, the user's own sound modules, saves, modes
 (16x AF, 60 FPS), display and diagnostics. They go to sotc.py as environment variables.
@@ -20,16 +20,17 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 
 FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
-from sotc_cache import cache_path
-CONFIG_DIR = Path(os.environ.get('APPDATA', Path.home())) / 'sotc-launcher'
+# Path.home() only when APPDATA is missing: it raises without USERPROFILE/HOMEPATH.
+CONFIG_DIR = Path(os.environ.get('APPDATA') or Path.home()) / 'sotc-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 GAME_ID, GAME_VERSION = 'CUSA08809', '01.01'
 SYS_MODULES = ('libSceUlt.sprx', 'libSceNgs2.sprx')
-VERSION = '0.57'
+VERSION = '0.57-fixed.1'
 MAX_LOG_LINES = 6000
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -85,7 +86,15 @@ def run_command():
 LANG = 'pt'
 
 
+try:  # Spanish texts, keyed by the English ones (launcher/sotc_lang_es.py)
+    from sotc_lang_es import ES
+except ImportError:
+    ES = {}
+
+
 def _(pt, en):
+    if LANG == 'es':
+        return ES.get(en, en)
     return pt if LANG == 'pt' else en
 
 
@@ -94,21 +103,21 @@ def windows_language():
         primary = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3ff
     except (AttributeError, OSError):
         primary = 0
-    return 'pt' if primary == 0x16 else 'en'
+    return {0x16: 'pt', 0x0a: 'es'}.get(primary, 'en')
 
 
 # ---------------------------------------------------------------------------------------------
 # Settings, passed to sotc.py as environment variables.
 
 APP_DEFAULTS = {'ui_language': '', 'game_dir': str(PORT_DIR.parent / GAME_ID), 'sys_modules': '',
-                'user_dir': '', 'af16': True, 'fps60': False, 'fps_unlimited': False, 'fullscreen': False,
+                'user_dir': '', 'af16': True, 'fps60': False, 'fullscreen': False,
                 'present_mode': 'Mailbox', 'language': '', 'player_name': '', 'show_fps': False,
                 'readbacks': '', 'extra_env': '', 'close_on_play': False, 'gamepad': '',
                 'output_res': '1920x1080', 'upscaler': 'fsr1', 'sharpness': '250', 'mouse': True,
                 'mouse_sens': '1.0', 'mouse_invert': False, 'neo': False, 'fx_vignette': True,
                 'fx_fog': True, 'fx_ssao': True, 'engine_cvars': '', 'perf_culling': True,
-                'perf_record_thread': True, 'perf_draw_prep': True, 'perf_dma': False, 'gpu_submit': 'auto', 'library_dirs': [], 'keys': {},
-                'auto_setup': True, 'dlc_dir': ''}
+                'perf_record_thread': True, 'perf_dma': True, 'gpu_submit': 'auto', 'library_dirs': [], 'keys': {},
+                'auto_setup': True, 'dlc_dir': '', 'pad_style': 'playstation', 'vibration': 100, 'pads': {}, 'glyph_style': 'playstation'}
 # Keyboard bindings (src/runtime_pad.c): PS4 input, its default SDL key name, label.
 KEY_INPUTS = [
     ('move_up', 'W', ('Andar para frente', 'Move forward')), ('move_down', 'S', ('Andar para trás', 'Move back')),
@@ -152,19 +161,44 @@ def sdl_key_name(keysym):
     return None
 
 
-def write_key_bindings(keys):
-    """The launcher's key bindings as key.<input>= lines of sotc.ini (BB_CONFIG), replacing its
-    earlier ones; other lines stay."""
+# The game's PS4 buttons and the SDL gamepad button each one has by default (src/runtime_pad.c
+# bind_defaults; the touchpad press is also on Back/View/-). touchpad_right has none by default.
+PAD_INPUTS = [
+    ('cross', 'a', ('Cruz ✕', 'Cross ✕')), ('circle', 'b', ('Círculo ○', 'Circle ○')),
+    ('square', 'x', ('Quadrado □', 'Square □')), ('triangle', 'y', ('Triângulo △', 'Triangle △')),
+    ('l1', 'leftshoulder', ('L1', 'L1')), ('r1', 'rightshoulder', ('R1', 'R1')),
+    ('l2', 'lefttrigger', ('L2', 'L2')), ('r2', 'righttrigger', ('R2', 'R2')),
+    ('l3', 'leftstick', ('L3', 'L3')), ('r3', 'rightstick', ('R3', 'R3')),
+    ('options', 'start', ('Options', 'Options')), ('touchpad', 'touchpad', ('Touchpad (esquerda)', 'Touchpad (left)')),
+    ('touchpad_right', '', ('Touchpad (direita)', 'Touchpad (right)')),
+    ('up', 'dpup', ('Direcional ↑', 'D-pad ↑')), ('down', 'dpdown', ('Direcional ↓', 'D-pad ↓')),
+    ('left', 'dpleft', ('Direcional ←', 'D-pad ←')), ('right', 'dpright', ('Direcional →', 'D-pad →')),
+]
+PAD_STYLES = [('playstation', 'PlayStation'), ('xbox', 'Xbox'), ('nintendo', 'Nintendo')]
+try:  # controller button icons drawn on a Tk canvas (launcher/button_icons.py)
+    import button_icons
+except ImportError:
+    button_icons = None
+
+
+def write_key_bindings(keys, pads=None):
+    """The launcher's key and gamepad bindings as key.<input>= / pad.<input>= lines of sotc.ini
+    (BB_CONFIG), replacing its earlier ones; other lines stay."""
     ini = PORT_DIR / 'sotc.ini'
     try:
         lines = ini.read_text(encoding='utf-8').splitlines()
     except OSError:
         lines = []
-    lines = [line for line in lines if not line.startswith('key.') and line != '# key bindings (launcher)']
+    lines = [line for line in lines if not line.startswith(('key.', 'pad.'))
+             and line not in ('# key bindings (launcher)', '# gamepad bindings (launcher)')]
     custom = dict(keys or {})  # an empty value unbinds the input
     if custom:
         lines.append('# key bindings (launcher)')
         lines += [f'key.{name}={value}' for name, value in sorted(custom.items())]
+    custom_pads = dict(pads or {})
+    if custom_pads:
+        lines.append('# gamepad bindings (launcher)')
+        lines += [f'pad.{name}={value}' for name, value in sorted(custom_pads.items())]
     ini.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 # Engine effects verified to change the image when set on the command line (A/B, 08/10/2026).
 EFFECTS = [('fx_vignette', ('Vinheta (cantos escurecidos)', 'Vignette (darkened corners)'),
@@ -189,7 +223,8 @@ LANGUAGES = [('', ('Automático (o do jogo)', 'Automatic (the game\'s)')),
              ('4', ('Alemão', 'German')), ('5', ('Italiano', 'Italian')), ('0', ('Japonês', 'Japanese'))]
 READBACKS = [('', ('Precisas (padrão; o jogo precisa)', 'Precise (default; the game needs them)')),
              ('1', ('Relaxadas (pode travar)', 'Relaxed (may hang)'))]
-UI_LANGUAGES = [('', ('Automático', 'Automatic')), ('pt', ('Português', 'Portuguese')), ('en', ('Inglês', 'English'))]
+UI_LANGUAGES = [('', ('Automático', 'Automatic')), ('pt', ('Português', 'Portuguese')), ('en', ('Inglês', 'English')),
+                ('es', ('Espanhol', 'Spanish'))]
 CONTROLS = [('W A S D', ('analógico esquerdo', 'left stick')), (('setas', 'arrows'), ('analógico direito (câmera)', 'right stick (camera)')),
             ('Espaço / Space', '✕'), ('Shift', '○'), ('E', '□'), ('Q', '△'), ('1 / 3', 'L1 / R1'), ('R / F', 'L2 / R2'),
             ('Z / C', 'L3 / R3'), ('Enter', 'Options'), ('I J K L', ('direcional', 'd-pad')),
@@ -249,6 +284,43 @@ def user_dir(s):
     return folder
 
 
+LOGS_KEPT = 5      # last_run.log and last_run.1.log ... last_run.4.log
+CRASH_LOGS_KEPT = 20
+
+
+def open_session_log(log_dir):
+    """Opens a fresh user/last_run.log; the previous sessions' logs move to last_run.1.log (the
+    one before) ... last_run.4.log, so a crash is not lost when the game is started again."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(LOGS_KEPT - 1, 0, -1):
+        older = log_dir / ('last_run.log' if i == 1 else f'last_run.{i - 1}.log')
+        if older.is_file():
+            try:
+                os.replace(older, log_dir / f'last_run.{i}.log')
+            except OSError:
+                pass
+    return open(log_dir / 'last_run.log', 'w', encoding='utf-8', buffering=1)
+
+
+def keep_crash_log(log_dir, code):
+    """After a session that ended with an error code, copies its log to
+    user/crashes/<date>_<time>_<code>.log (the last 20 are kept)."""
+    if code == 0:
+        return
+    crashes = log_dir / 'crashes'
+    try:
+        crashes.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime('%Y-%m-%d_%H-%M-%S')
+        shutil.copy2(log_dir / 'last_run.log', crashes / f'{stamp}_{code & 0xffffffff:#x}.log')
+        for old in sorted(crashes.glob('*.log'))[:-CRASH_LOGS_KEPT]:
+            old.unlink()
+        # Minidumps written by bb-probe on a fatal fault (src/probe.c): the last 5.
+        for old in sorted(crashes.glob('*.dmp'))[:-5]:
+            old.unlink()
+    except OSError:
+        pass
+
+
 def short_path(path):
     """A path for display: relative to the port folder when inside it, else as is."""
     try:
@@ -266,9 +338,6 @@ def game_environment(s):
     if s.get('dlc_dir'):
         env['SOTC_DLC_DIR'] = s['dlc_dir']
     env['SOTC_MODES'] = ','.join(m for m in ('af16', 'fps60') if s.get(m))
-    if s.get('fps60') and s.get('fps_unlimited'):
-        # No host frame limit: the game is then paced by the 120 Hz vblank (up to 120 FPS).
-        env['BB_FPS_LIMIT'] = '0'
     env['BB_FULLSCREEN'] = '1' if s['fullscreen'] else '0'
     env['BB_PRESENT_MODE'] = s['present_mode']
     if s['language']:
@@ -287,12 +356,11 @@ def game_environment(s):
     cvars += str(s.get('engine_cvars', '')).split()
     env['SOTC_CVARS'] = ' '.join(cvars)
     env['SOTC_RECORD_THREAD'] = '1' if s.get('perf_record_thread', True) else '0'
-    env['SOTC_DRAW_PREP'] = '1' if s.get('perf_draw_prep', True) else '0'
-    # Off by default in the port; the switch sets it either way.
-    env['BB_DIRECT_MEMORY_ACCESS'] = '1' if s.get('perf_dma', False) else '0'
+    if not s.get('perf_dma', True):
+        env['BB_DIRECT_MEMORY_ACCESS'] = '0'
     # Periodic submits and readbacks ahead: by default only with NVIDIA (vk_rasterizer.cpp).
     if s.get('gpu_submit') == 'on':
-        env['SOTC_FLUSH_US'], env['SOTC_RB_AHEAD'] = '500', '1'
+        env['SOTC_FLUSH_US'], env['SOTC_RB_AHEAD'] = '1000', '1'
     elif s.get('gpu_submit') == 'off':
         env['SOTC_FLUSH_EVERY'], env['SOTC_RB_AHEAD'] = '0', '0'
     env['SOTC_NEO'] = '1' if s.get('neo') else '0'
@@ -304,6 +372,13 @@ def game_environment(s):
         env['BB_RCAS'] = '1'
         env['BB_RCAS_ATTENUATION'] = str(s.get('sharpness') or '250')
     env['SOTC_MOUSE'] = '1' if s.get('mouse', True) else '0'
+    env['SOTC_VIBRATION'] = str(int(s.get('vibration', 100)))
+    env['SOTC_UI_LANG'] = LANG  # the in-game menu (Insert / L2+R3) speaks the launcher's language
+    # In-game button icons: Xbox / Nintendo glyphs replace the game's PlayStation ones on the GPU
+    # (glyphs/<style>/<texture hash>.png, texture_cache.cpp SotcGlyphHook).
+    glyphs = PORT_DIR / 'glyphs' / str(s.get('glyph_style', 'playstation'))
+    if s.get('glyph_style', 'playstation') != 'playstation' and glyphs.is_dir():
+        env['SOTC_TEX_REPLACE'] = str(glyphs)
     env['SOTC_MOUSE_SENS'] = str(s.get('mouse_sens') or '1.0')
     env['SOTC_MOUSE_INVERT'] = '1' if s.get('mouse_invert') else '0'
     if str(s.get('gamepad', '')).strip():
@@ -346,11 +421,12 @@ class Launcher:
         self.app = {**APP_DEFAULTS, **load_json(CONFIG_FILE, {})}
         self.vars = {}
         self.process = self.job = None
+        self.stopping = False
         self.output = queue.Queue()
         self.ui_calls = queue.Queue()
         self.gpu_text = _('• Verificando a placa de vídeo…', '• Checking the graphics card…')
         self.banner_source = self.banner_image = None
-        root.title('Shadow of the Colossus — port nativo' if LANG == 'pt' else 'Shadow of the Colossus — native port')
+        root.title(_('Shadow of the Colossus — port nativo', 'Shadow of the Colossus — native port'))
         root.configure(bg=BG)
         self.dpi = root.winfo_fpixels('1i') / 96.0
         root.geometry(f'{self.px(1080)}x{self.px(700)}')
@@ -477,6 +553,9 @@ class Launcher:
             box.current(values.index(current) if current in values else 0)
         show()
         box.bind('<<ComboboxSelected>>', lambda _e: var.set(values[box.current()]))
+        # The wheel over a closed box scrolls the page instead of changing the option (Tk's
+        # default on Windows changes it, easy to do by accident while scrolling).
+        box.bind('<MouseWheel>', self.wheel_over_box)
         var.trace_add('write', show)
         return box
 
@@ -599,6 +678,12 @@ class Launcher:
         self.build_log()
         self.root.bind_all('<MouseWheel>', self.wheel)
         self.refresh_status()
+
+    def wheel_over_box(self, event):
+        page = self.pages.get(self.current_page)
+        if hasattr(page, 'scroll'):
+            page.scroll(int(-event.delta / 120))
+        return 'break'
 
     def wheel(self, event):
         page = self.pages.get(self.current_page)
@@ -745,8 +830,8 @@ class Launcher:
                     on_change=self.refresh_status)
         self.section(f, _('Saves', 'Saves'))
         self.folder(f, 'user_dir', _('Pasta de dados', 'Data folder'), _('Pasta dos saves', 'Saves folder'),
-                    _('Saves e capturas. Vazio = a pasta user ao lado do port. O cache é compartilhado entre instalações.',
-                      'Saves and screenshots. Empty = the user folder next to the port. The cache is shared across installations.'),
+                    _('Saves, cache de shaders e capturas. Vazio = a pasta user ao lado do port.',
+                      'Saves, shader cache and screenshots. Empty = the user folder next to the port.'),
                     on_change=self.refresh_status)
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
@@ -769,12 +854,6 @@ class Launcher:
         self.check(f, 'fps60', _('60 FPS (experimental)', '60 FPS (experimental)'),
                    _('Tira o limite de 30 FPS do jogo; o vblank vai a 120 Hz. Mediu 38 FPS no campo e ~25 no templo.',
                      'Removes the game\'s 30 FPS cap; vblank at 120 Hz. Measured 38 FPS in the open world, ~25 at the temple.'))
-        self.check(f, 'fps_unlimited', _('Sem limite de FPS (com 60 FPS ligado, até 120)',
-                                          'No FPS limit (with 60 FPS on, up to 120)'),
-                   _('Tira o limite de 60 do modo 60 FPS: o jogo vai até o vblank de 120 Hz. Experimental: '
-                     'se algo andar rápido ou devagar demais (cavalo, escalada, cenas), volte para 60.',
-                     'Lifts the 60 FPS mode\'s cap: the game runs up to the 120 Hz vblank. Experimental: '
-                     'if anything moves too fast or too slow (horse, climbing, cutscenes), go back to 60.'))
         self.section(f, _('Resolução', 'Resolution'))
         self.row(f, _('Saída', 'Output'), self.choice(f, 'output_res', OUTPUTS),
                  _('O jogo renderiza em 1080p, como no PS4; a imagem é ampliada ou reduzida para a saída. '
@@ -803,14 +882,6 @@ class Launcher:
                      'Ponte do cânion no demo: ~24 → ~28 FPS. Desligue se notar travamentos.',
                      'Records and submits the GPU commands on another thread (cp_record_thread of '
                      'Pink-shadPS4). Canyon bridge in the demo: ~24 → ~28 FPS. Turn it off if the game hangs.'))
-        self.check(f, 'perf_draw_prep', _('Preparar os draws em outra thread (recomendado)',
-                                           'Prepare draws on another thread (recommended)'),
-                   _('Uma thread auxiliar escolhe antes o pipeline de cada draw e o processador de comandos só '
-                     'confere e usa (tudo é conferido, nada é aceito sem prova). Demo: CP ~8% mais leve, '
-                     '+3–4% de FPS. Desligue se notar algo estranho.',
-                     'A helper thread picks each draw\'s pipeline ahead of time and the command processor only '
-                     'checks and uses it (everything is checked, nothing is taken unproven). Demo: command '
-                     'processor ~8% lighter, +3-4% FPS. Turn it off if something looks wrong.'))
         self.check(f, 'perf_dma', _('Reflexos completos da água (acesso direto à memória)',
                                      'Full water reflections (direct memory access)'),
                    _('Deixa os shaders lerem tabelas da memória do jogo direto (como o Pink-shadPS4): o lago ondula '
@@ -844,6 +915,7 @@ class Launcher:
         self.row(f, _('Controle preferido', 'Preferred gamepad'), ttk.Entry(f, textvariable=self.var('gamepad'), width=30),
                  _('Nome (ou parte) do controle a usar quando houver vários; vazio = o primeiro.',
                    'Name (or part of it) of the gamepad to use when several are connected; empty = the first.'))
+        self.build_pad_controls(f)
         self.section(f, _('Mouse', 'Mouse'))
         self.check(f, 'mouse', _('Câmera no mouse', 'Mouse camera'),
                    _('Clique na janela do jogo para capturar o mouse; Esc solta. Botão esquerdo = R1 (agarrar), '
@@ -869,9 +941,118 @@ class Launcher:
         ttk.Button(holder, text=_('Restaurar as teclas padrão', 'Restore the default keys'),
                    command=self.reset_keys).pack(side='left')
         self.show_keys()
-        self.note(f, _('O controle também pode ser remapeado no sotc.ini, por exemplo pad.circle=b '
-                       '(nomes de botão do SDL).',
-                       'The gamepad can be remapped in sotc.ini too, e.g. pad.circle=b (SDL button names).'))
+
+    def build_pad_controls(self, f):
+        """Gamepad naming style, vibration and the game button -> gamepad button table (pad.<input>=
+        lines of sotc.ini, read by src/runtime_pad.c)."""
+        tk, ttk = self.tk, self.ttk
+        style = self.app.get('pad_style') if self.app.get('pad_style') in dict(PAD_STYLES) else 'playstation'
+        self.pad_style = tk.StringVar(value=style)
+        names = ttk.Frame(f)
+        for value, label in PAD_STYLES:
+            ttk.Radiobutton(names, text=label, value=value, variable=self.pad_style,
+                            command=self.relabel_pad_controls).pack(side='left', padx=(0, 14))
+        self.row(f, _('Nomes e ícones dos botões', 'Button names and icons'), names,
+                 _('Só muda como o lançador mostra os botões do seu controle.',
+                   'Only changes how the launcher shows the buttons of your gamepad.'))
+        self.row(f, _('Ícones dos botões no jogo', 'In-game button icons'),
+                 self.choice(f, 'glyph_style', [(v, (l, l)) for v, l in PAD_STYLES], 20),
+                 _('Troca os ícones PlayStation dos avisos do jogo pelos do Xbox ou do Nintendo, na placa de '
+                   'vídeo (os arquivos do jogo não mudam). Vale na próxima vez que o jogo abrir.',
+                   "Replaces the game's PlayStation prompt icons with Xbox or Nintendo ones on the graphics "
+                   "card (the game files are not changed). Applies the next time the game starts."))
+        holder = ttk.Frame(f)
+        strength = tk.IntVar(value=int(self.app.get('vibration', 100)))
+        tk.Scale(holder, from_=0, to=100, orient='horizontal', variable=strength, showvalue=False,
+                 length=self.px(260), width=self.px(12), sliderlength=self.px(18), bg=ACCENT, troughcolor=CARD,
+                 activebackground=ACCENT_HI, highlightthickness=0, bd=0, sliderrelief='flat').pack(side='left')
+        value = ttk.Label(holder, width=5)
+        value.pack(side='left', padx=10)
+
+        def show_strength(*_a):
+            value.configure(text=f'{strength.get()}%')
+            self.app['vibration'] = strength.get()
+        strength.trace_add('write', show_strength)
+        show_strength()
+        self.row(f, _('Vibração', 'Vibration'), holder,
+                 _('Força da vibração do controle; 0% desliga.', "Strength of the gamepad's vibration; 0% turns it off."))
+        table = ttk.Frame(f)
+        table.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(14, 0))
+        for column, span, title in ((0, 2, _('BOTÃO DO JOGO', 'GAME BUTTON')), (2, 2, _('NO CONTROLE', 'ON THE GAMEPAD'))):
+            ttk.Label(table, text=title, style='Muted.TLabel').grid(row=0, column=column, columnspan=span, sticky='w')
+        size = self.px(28)
+        pads = self.app.setdefault('pads', {})
+        self.pad_boxes, self.pad_icons, self.pad_choice = {}, {}, {}
+
+        def icon_canvas(parent):
+            return tk.Canvas(parent, width=size, height=size, bg=PANEL, highlightthickness=0, bd=0)
+        for r, (name, default, label) in enumerate(PAD_INPUTS, start=1):
+            game_icon = icon_canvas(table)
+            game_icon.grid(row=r, column=0, sticky='w', pady=2)
+            if button_icons:
+                button_icons.draw(game_icon, button_icons.GAME_BUTTONS[name], 'playstation', size)
+            ttk.Label(table, text=_(*label), width=-20).grid(row=r, column=1, sticky='w', padx=(6, 18))
+            pad_icon = icon_canvas(table)
+            pad_icon.grid(row=r, column=2, sticky='w', padx=(0, 6))
+            self.pad_icons[name] = pad_icon
+            self.pad_choice[name] = pads.get(name)
+            box = ttk.Combobox(table, state='readonly', width=24)
+            box.grid(row=r, column=3, sticky='w')
+            box.bind('<MouseWheel>', self.wheel_over_box)
+
+            def chosen(_e, b=box, n=name):
+                picked = self.pad_values()[b.current()][0]
+                self.pad_choice[n] = picked
+                if picked in self.pad_defaults(n):
+                    self.app['pads'].pop(n, None)
+                else:
+                    self.app['pads'][n] = picked
+                self.draw_pad_icon(n)
+            box.bind('<<ComboboxSelected>>', chosen)
+            self.pad_boxes[name] = box
+        self.relabel_pad_controls()
+        ttk.Button(f, text=_('Restaurar os botões padrão do controle', 'Restore the default gamepad buttons'),
+                   command=self.reset_pads).grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
+        self.note(f, _('L2/R2 também podem ir para outros botões; o Touchpad (direita) não tem botão padrão. '
+                       'Vale na próxima vez que o jogo abrir.',
+                       'L2/R2 can go to other buttons too; Touchpad (right) has no default button. '
+                       'Applies the next time the game starts.'))
+
+    def pad_values(self):
+        """(SDL name, label) of every choice of the gamepad column in the current style."""
+        style = self.pad_style.get()
+        buttons = button_icons.PAD_BUTTONS if button_icons else [d for _n, d, _l in PAD_INPUTS if d]
+        return [('', _('— nenhum —', '— none —'))] + [
+            (b, button_icons.label(b, style) if button_icons else b) for b in buttons]
+
+    def pad_defaults(self, name):
+        """SDL buttons that keep an input on its default binding; the touchpad press is on both the
+        touchpad and Back (View on Xbox, - on Nintendo, which have no touchpad)."""
+        if name == 'touchpad':
+            return ('touchpad', 'back') if self.pad_style.get() == 'playstation' else ('back', 'touchpad')
+        return (next(d for n, d, _l in PAD_INPUTS if n == name),)
+
+    def draw_pad_icon(self, name):
+        canvas = self.pad_icons[name]
+        canvas.delete('all')
+        button = self.pad_choice.get(name)
+        if button_icons and button:
+            button_icons.draw(canvas, button, self.pad_style.get(), self.px(28))
+
+    def relabel_pad_controls(self):
+        self.app['pad_style'] = self.pad_style.get()
+        values = self.pad_values()
+        for name, box in self.pad_boxes.items():
+            box.configure(values=[l for _b, l in values])
+            if name not in self.app.get('pads', {}):
+                self.pad_choice[name] = self.pad_defaults(name)[0]
+            current = self.pad_choice.get(name, '')
+            box.current(next((i for i, (b, _l) in enumerate(values) if b == current), 0))
+            self.draw_pad_icon(name)
+
+    def reset_pads(self):
+        self.app['pads'] = {}
+        self.relabel_pad_controls()
 
     def show_keys(self):
         keys = self.app.setdefault('keys', {})
@@ -1055,16 +1236,24 @@ class Launcher:
         if source.name != GAME_ID and (source / GAME_ID).is_dir():
             source = source / GAME_ID
         target = user_dir({'user_dir': self.var('user_dir').get()}) / 'savedata' / '1' / GAME_ID
-        if target.exists() and any(target.iterdir()):
-            if not self.messagebox.askyesno('Shadow of the Colossus', _(
-                    'Já há saves em {}. Substituir? (uma cópia fica em {}.bak)',
-                    'There are saves in {} already. Replace them? (a copy stays in {}.bak)').format(target, target.name)):
-                return
-            backup = target.with_name(target.name + '.bak')
-            shutil.rmtree(backup, ignore_errors=True)
-            target.rename(backup)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source, target)
+        # sotc: one save folder picked (it holds sce_sys/param.sfo): import it as one save. The
+        # runtime creates the port's metadata for saves that come without it.
+        single = (source / 'sce_sys' / 'param.sfo').is_file()
+        try:
+            if not single and target.exists() and any(target.iterdir()):
+                if not self.messagebox.askyesno('Shadow of the Colossus', _(
+                        'Já há saves em {}. Substituir? (uma cópia fica em {}.bak)',
+                        'There are saves in {} already. Replace them? (a copy stays in {}.bak)').format(target, target.name)):
+                    return
+                backup = target.with_name(target.name + '.bak')
+                shutil.rmtree(backup, ignore_errors=True)
+                target.rename(backup)
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source, target / source.name if single else target, dirs_exist_ok=True)
+        except OSError as error:
+            self.messagebox.showerror('Shadow of the Colossus', _('Não foi possível importar o save: {}',
+                                                                 'Could not import the save: {}').format(error))
+            return
         self.refresh_status()
         self.messagebox.showinfo('Shadow of the Colossus', _('Save importado para {}.', 'Save imported to {}.').format(target))
 
@@ -1408,7 +1597,7 @@ class Launcher:
             return
         self.set_log('')
         try:
-            write_key_bindings(self.app.get('keys'))
+            write_key_bindings(self.app.get('keys'), self.app.get('pads'))
         except OSError as error:
             self.append(_('Não foi possível gravar as teclas no sotc.ini: {}',
                           'Could not write the keys to sotc.ini: {}').format(error) + '\n')
@@ -1431,10 +1620,9 @@ class Launcher:
 
     def read_output(self, process):
         # The output also goes to user/last_run.log, so a crash can be looked at afterwards.
+        log_dir = user_dir(self.app)
         try:
-            log_dir = user_dir(self.app)
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log = open(log_dir / 'last_run.log', 'w', encoding='utf-8', buffering=1)
+            log = open_session_log(log_dir)
         except OSError:
             log = None
         for raw in iter(process.stdout.readline, b''):
@@ -1452,6 +1640,9 @@ class Launcher:
                 log.close()
             except (OSError, ValueError):
                 pass
+            if not self.stopping:
+                keep_crash_log(log_dir, code)
+        self.stopping = False
         self.output.put((code,))
 
     def drain_output(self):
@@ -1477,6 +1668,7 @@ class Launcher:
 
     def stop(self):
         if self.job:
+            self.stopping = True  # stopped from the launcher: not a crash
             self.job.terminate()
 
     def append(self, text):
@@ -1507,10 +1699,8 @@ class Launcher:
     def clear_cache(self):
         if self.process:
             return
-        # Remove the legacy root too, so it cannot reseed the cache just cleared.
-        for folder in (cache_path(user_dir(self.app), game_environment(self.app)) / GAME_ID,
-                       user_dir(self.app) / 'cache' / GAME_ID, user_dir(self.app) / 'shader'):
-            shutil.rmtree(folder, ignore_errors=True)
+        for name in ('cache', 'shader'):
+            shutil.rmtree(user_dir(self.app) / name, ignore_errors=True)
         self.messagebox.showinfo('Shadow of the Colossus', _(
             'Cache de shaders limpo. A próxima partida engasga alguns minutos enquanto ele é refeito.',
             'Shader cache cleared. The next start stutters for a few minutes while it is rebuilt.'))
@@ -1570,10 +1760,10 @@ def play_without_window(settings):
     log_dir = user_dir(settings)
     log_dir.mkdir(parents=True, exist_ok=True)
     try:
-        write_key_bindings(settings.get('keys'))
+        write_key_bindings(settings.get('keys'), settings.get('pads'))
     except OSError:
         pass
-    with open(log_dir / 'last_run.log', 'w', encoding='utf-8', buffering=1) as log:
+    with open_session_log(log_dir) as log:
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
@@ -1584,7 +1774,10 @@ def play_without_window(settings):
                 sys.stdout.write(text)
             except (OSError, ValueError):
                 pass
-        return process.wait()
+        code = process.wait()
+        log.write(f'[exit code {code} = {code & 0xffffffff:#x}]\n')
+    keep_crash_log(log_dir, code)
+    return code
 
 
 def main():

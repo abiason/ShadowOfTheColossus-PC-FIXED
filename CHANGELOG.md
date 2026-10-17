@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.57-fixed.1 — 2026-10-17 (fork xeodeo, sobre DUDUYG perf/command-processor)
+- AMD RDNA3/RDNA4: barreira entre o clear e o blit da janela (bloco preto no canto inferior
+  esquerdo, issue #43).
+- AMD: ramos uniformes de wave64 ligados também no driver da AMD (listras nas sombras, issue #27,
+  PR #32); o cache de shaders separa os dois modos.
+- AMD: imagens BC5/BC6H criadas sem uso storage quando o driver recusa.
+- PGO do Clang (perfil treinado numa Radeon 780M): +2,6% no santuário.
+- Menu no jogo (Insert / L2+R3), ícones de botões Xbox/Nintendo no jogo, lançador em espanhol,
+  página de controles com vibração e remapeamento do controle.
+- Correções de outros forks: LRU/GC, buffer de cópia, blocos VMA de 64 MB, lock de regiões e
+  gravador sem girar no Windows, pipelines recusados descartados, ResourcePool.
+- Detalhes: docs/releases/v0.57-fixed.1.md.
+
 ## 0.57 — 2026-10-14
 - **Placas AMD: correção das cores verdes/rosas** na névoa, no Wander e no Agro (issues #6, #7, #9,
   possivelmente #10). A AMD informa grupos de 64 threads, mas só deixa fixar esse tamanho nos

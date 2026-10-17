@@ -1,14 +1,50 @@
-# Shadow of the Colossus — PC (port nativo / native port) · v0.57
+# Shadow of the Colossus — PC (port nativo / native port) · v0.57-fixed.1
 
-**Alterações locais Codex:** [caches persistentes, instrumentação e executável de teste](docs/sotc/STUTTER-CODEX.md).
-
-**[Português](#português)** · **[English](#english)** · [Releases](../../releases) · [Changelog](CHANGELOG.md)
+**[Español](#español)** · **[Português](#português)** · **[English](#english)** · [Releases](../../releases) · [Changelog](CHANGELOG.md)
 
 > **Nenhum arquivo do jogo nem da Sony está incluído / No game or Sony files are included.**
 > Você precisa do seu próprio dump do jogo e, para ter som, de dois módulos do seu próprio
 > console. / You need your own game dump and, for sound, two modules from your own console.
 > Este projeto não tem ligação com a Sony Interactive Entertainment nem com a Bluepoint Games. /
 > This project is not affiliated with Sony Interactive Entertainment or Bluepoint Games.
+
+> **No incluye el juego ni firmware de Sony.** Excepción temporal: los iconos de botones Xbox/Nintendo
+> de `glyphs/` están hechos a partir de las texturas de los iconos del juego; en la próxima versión
+> se generarán en tu PC a partir de tu propio dump y se retirarán del repositorio.
+
+---
+
+## Español
+
+Fork del port nativo de **Shadow of the Colossus** (PS4, CUSA08809 EU 1.01) para Windows 10/11,
+centrado en **tarjetas AMD** y en rendimiento. Base: la rama de rendimiento de DUDUYG (PR #69 del
+proyecto original, con la PR #32 de Gabriell-os), más arreglos propios y de otros forks.
+Notas completas: [docs/releases/v0.57-fixed.1.md](docs/releases/v0.57-fixed.1.md).
+
+### Qué cambia en v0.57-fixed.1
+
+| | |
+|---|---|
+| **Bloque negro en AMD** | Arreglado el bloque negro abajo a la izquierda en RDNA3/RDNA4 (issue #43): faltaba una barrera entre el borrado de la ventana y la copia de la imagen. |
+| **Sombras** | Sin rayas horizontales en el suelo alrededor de Wander/Agro en AMD (issue #27, hallazgo de la PR #32). |
+| **Texturas BC5/BC6H** | Se crean sin uso *storage* cuando el driver de AMD lo rechaza. |
+| **Rendimiento** | Base DUDUYG +5% frente a la opt4 y PGO de Clang +2,6% (Radeon 780M, medido en rondas alternadas). Arreglos de CPU y memoria de otros forks. |
+| **Menú en el juego** | **Insert** o **L2 + R3**: FPS, 1% low, FSR 1, nitidez, vibración en vivo. |
+| **Iconos Xbox/Nintendo** | Los avisos de botones del juego pueden mostrarse como Xbox o Nintendo. |
+| **Lanzador** | En español; página de Controles con iconos, vibración y reasignación del mando. |
+
+### Uso
+
+1. Descarga la release y descomprímela. Abre **`SotC.exe`** (lanzador).
+2. El lanzador busca solo tu dump (con `eboot.bin`, `sce_module`, `sce_sys`), los módulos de sonido
+   (`libSceNgs2.sprx`, `libSceUlt.sprx`) de tu shadPS4 y tus partidas.
+3. **Juego y partidas** para revisar las carpetas; **JUGAR**.
+
+### Compilar
+
+MSYS2 CLANG64 (paquetes en `packaging/windows/README.md`) y `bash build.sh`. Para la versión con PGO:
+compila con `-DBB_PGO=generate`, juega un rato con ese ejecutable (escribe `pgo/*.profraw` cada 30 s),
+`llvm-profdata merge -o pgo/bbgpu.profdata pgo/*.profraw` y vuelve a compilar con `-DBB_PGO=use`.
 
 ---
 
