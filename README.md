@@ -8,37 +8,122 @@
 > Este projeto não tem ligação com a Sony Interactive Entertainment nem com a Bluepoint Games. /
 > This project is not affiliated with Sony Interactive Entertainment or Bluepoint Games.
 
-> **No incluye el juego ni firmware de Sony.** Excepción temporal: los iconos de botones Xbox/Nintendo
-> de `glyphs/` están hechos a partir de las texturas de los iconos del juego; en la próxima versión
-> se generarán en tu PC a partir de tu propio dump y se retirarán del repositorio.
+> **No se incluye ningún archivo del juego ni de Sony** (salvo los iconos de `glyphs/`, ver la sección
+> en español). Necesitas tu propio dump del juego y, para el sonido, dos módulos de tu propia consola.
 
 ---
 
 ## Español
 
-Fork del port nativo de **Shadow of the Colossus** (PS4, CUSA08809 EU 1.01) para Windows 10/11,
-centrado en **tarjetas AMD** y en rendimiento. Base: la rama de rendimiento de DUDUYG (PR #69 del
-proyecto original, con la PR #32 de Gabriell-os), más arreglos propios y de otros forks.
-Notas completas: [docs/releases/v0.57-fixed.1.md](docs/releases/v0.57-fixed.1.md).
+Port nativo de **Shadow of the Colossus** de PS4 (Bluepoint, 2018; CUSA08809, versión EU 1.01)
+para **Windows 10/11**. El código x86-64 del propio juego se ejecuta directamente en la CPU del PC y
+la GPU del PS4 se traduce a Vulkan. No es un emulador completo: es un cargador con las funciones de
+sistema que el juego necesita, al estilo de [bloodborne_pc](https://github.com/Supermedo/bloodborne_pc).
 
-### Qué cambia en v0.57-fixed.1
+Este fork (**v0.57-fixed.1**) está centrado en **tarjetas AMD** y en rendimiento. Parte de la rama de
+rendimiento de DUDUYG (PR #69 del proyecto original, con la PR #32 de Gabriell-os) y añade arreglos
+propios y de otros forks. Notas completas: [docs/releases/v0.57-fixed.1.md](docs/releases/v0.57-fixed.1.md).
 
-| | |
+> **Aviso:** los iconos de botones Xbox/Nintendo de `glyphs/` están hechos a partir de las texturas de
+> los iconos del juego. En la próxima versión se generarán en tu PC a partir de tu propio dump y se
+> retirarán del repositorio.
+
+### Novedades
+
+| Versión | Mejoras y correcciones |
 |---|---|
-| **Bloque negro en AMD** | Arreglado el bloque negro abajo a la izquierda en RDNA3/RDNA4 (issue #43): faltaba una barrera entre el borrado de la ventana y la copia de la imagen. |
-| **Sombras** | Sin rayas horizontales en el suelo alrededor de Wander/Agro en AMD (issue #27, hallazgo de la PR #32). |
-| **Texturas BC5/BC6H** | Se crean sin uso *storage* cuando el driver de AMD lo rechaza. |
-| **Rendimiento** | Base DUDUYG +5% frente a la opt4 y PGO de Clang +2,6% (Radeon 780M, medido en rondas alternadas). Arreglos de CPU y memoria de otros forks. |
-| **Menú en el juego** | **Insert** o **L2 + R3**: FPS, 1% low, FSR 1, nitidez, vibración en vivo. |
-| **Iconos Xbox/Nintendo** | Los avisos de botones del juego pueden mostrarse como Xbox o Nintendo. |
-| **Lanzador** | En español; página de Controles con iconos, vibración y reasignación del mando. |
+| **0.57-fixed.1** | **AMD RDNA3/RDNA4:** arreglado el bloque negro abajo a la izquierda ([#43](https://github.com/AjncSystem/ShadowOfTheColossus-PC/issues/43): faltaba una barrera entre el borrado de la ventana y la copia de la imagen). **Sombras sin rayas** en el suelo alrededor de Wander y Agro ([#27](https://github.com/AjncSystem/ShadowOfTheColossus-PC/issues/27)). **Texturas BC5/BC6H** creadas sin uso *storage* cuando el driver de AMD lo rechaza. **Rendimiento:** base de DUDUYG (+5% frente a la opt4) y PGO de Clang (+2,6%), medidos en una Radeon 780M. **Menú dentro del juego** (Insert o L2 + R3), **iconos Xbox/Nintendo** en los avisos del juego, **lanzador en español** y página de **Controles** con vibración y reasignación del mando. |
+| **0.57** | **Tarjetas AMD:** corrección de los colores verdes/rosas en la niebla y en los personajes. **Opción nueva** en el lanzador para apagar el acceso directo a memoria: ~10% más FPS, agua lejana más plana. |
+| **0.56** | **Agua del mundo abierto con olas:** los lagos y ríos bajo las cascadas ya no quedan lisos como un espejo (se ignoraba una instrucción de shader, `S_WQM_B64`). **El lago de arriba ondula y refleja hasta lejos.** Árboles lejanos sin "basura de colores". |
+| **0.0.13** | **Sin cierres:** corregido el cierre en la apertura/menú de la 0.0.12. **Reflejos del lago** en casi toda la superficie, con ondulación. |
+| **0.0.12** | **Texturas nítidas de vuelta, sin que el juego se cierre:** corregida la corrupción de memoria al cargar una partida y vuelto el streaming de texturas. **Agua:** salpicaduras, anillos y espuma al nadar; reflejos del cielo, del sol y de cada *probe*. |
+| **0.0.11** | Corregida la hierba con textura de "basura de colores" de la 0.0.10. |
 
-### Uso
+Detalles de cada versión en el [CHANGELOG](CHANGELOG.md).
 
-1. Descarga la release y descomprímela. Abre **`SotC.exe`** (lanzador).
-2. El lanzador busca solo tu dump (con `eboot.bin`, `sce_module`, `sce_sys`), los módulos de sonido
-   (`libSceNgs2.sprx`, `libSceUlt.sprx`) de tu shadPS4 y tus partidas.
-3. **Juego y partidas** para revisar las carpetas; **JUGAR**.
+### Problemas conocidos
+
+- En el primer arranque tras actualizar se vuelven a compilar los shaders: la primera carga tarda y da
+  tirones.
+- En el campo abierto (5.000–6.500 comandos por fotograma) una gráfica integrada como la Radeon 780M
+  sigue entre 20 y 26 FPS: el límite es el hilo de la CPU que traduce los comandos del juego.
+- Con 8 GB de memoria de vídeo, el uso queda cerca del límite en zonas grandes.
+
+### Descarga y uso
+
+1. Descarga el zip de la página [Releases](../../releases) y descomprímelo en una carpeta.
+2. Abre **`SotC.exe`**. La primera vez, el lanzador busca solo en los discos del PC:
+   - la carpeta del juego (el dump CUSA08809, con `eboot.bin`, `sce_module` y `sce_sys`);
+   - los módulos de sonido (`libSceNgs2.sprx` y `libSceUlt.sprx`) de un shadPS4 que ya tengas, en la
+     carpeta `user/sys_modules`, y los copia a la carpeta de datos del port;
+   - una partida del juego en shadPS4, que ofrece importar;
+   - los DLC del juego, si los hay: la carpeta `addcont` de shadPS4, o una carpeta con una subcarpeta por
+     DLC. También se puede elegir en **Juego y partidas > Carpeta de DLC**.
+3. Revisa la página **Juego y partidas**. La **biblioteca de juegos** funciona como la de shadPS4.
+4. Pulsa **JUGAR**.
+
+Requisitos: Windows 10/11 de 64 bits y una tarjeta gráfica con **Vulkan 1.3** (NVIDIA, AMD o Intel con
+el driver al día). No hace falta instalar Python.
+
+#### Los archivos que necesitas
+
+| Qué | De dónde | Para qué |
+|---|---|---|
+| Dump del juego CUSA08809 (mejor EU 1.01) | tu PS4, con GoldHEN | el juego |
+| `libSceNgs2.sprx`, `libSceUlt.sprx` descifrados | tu PS4 (`/system/common/lib/`, FTP de GoldHEN), o el `user/sys_modules` de shadPS4 | el sonido (sin ellos el juego va mudo) |
+
+Los modos de parche (60 FPS, filtro 16x) solo valen para la versión EU 1.01; en las demás el juego va
+normalmente, a 30 FPS.
+
+### El lanzador
+
+- **Jugar:** comprueba la versión del juego, el sonido, las partidas y la tarjeta gráfica antes de
+  abrir; opciones rápidas de salida, escalador, 60 FPS, filtro 16x y pantalla completa.
+- **Juego y partidas:** biblioteca de juegos, búsqueda automática en el PC, importación de partidas de
+  shadPS4.
+- **Imagen y FPS:** salida de 720p a 4K (el juego renderiza a 1080p y FSR 1 + RCAS lo amplía), modo PS4
+  Pro, efectos (viñeta, niebla, SSAO) y opciones de rendimiento.
+- **Controles:** mando automático (DualShock 4, DualSense, Xbox); nombres e iconos de los botones
+  PlayStation / Xbox / Nintendo; **iconos de botones dentro del juego**; **intensidad de la vibración**;
+  reasignación de cada botón del juego a cualquier botón del mando; cámara con el ratón; cambio de
+  teclas.
+- **Avanzado:** idioma del lanzador (español, portugués, inglés), cvars del motor de Bluepoint,
+  diagnóstico, acceso directo en el escritorio. El registro de cada sesión queda en `user/last_run.log`.
+
+### El menú dentro del juego
+
+Se abre con **Insert** en el teclado o **L2 + R3** en el mando. Muestra FPS, milisegundos por
+fotograma, 1% low y comandos por fotograma, y cambia en vivo: mostrar FPS, estadísticas detalladas,
+escalado FSR 1, nitidez (RCAS) y vibración. Mientras está abierto el juego no recibe la entrada. Se
+maneja con la cruceta o las flechas (izquierda/derecha cambian el valor) y se cierra con Círculo, Esc o
+el mismo atajo.
+
+### Lo que se hizo
+
+| Área | Resultado |
+|---|---|
+| Arranque | El juego arranca con el cargador de bbport: imports por NID, fibras, parches de CPU (SSE4a), imagen por debajo de 2 GiB (el juego guarda punteros de 31 bits). |
+| Vídeo | Núcleo de vídeo del fork shadPS4 SotC dentro del port: logos, apertura, menús, campo abierto sin polígonos negros, sombras con iluminación correcta. |
+| AMD | Sin bloque negro en RDNA3/RDNA4, sombras sin rayas, texturas BC5/BC6H sin uso *storage* no soportado. |
+| Texturas | Streaming de texturas (el juego carga los mips más finos), sin corrupción de memoria. |
+| Agua | Reflejos en espacio de pantalla, reflejos de entorno por *probe*, salpicaduras y anillos al nadar. |
+| Partidas | Guardado, carga y borrado desde la lista de partidas en pantalla. |
+| Sonido | Audio real con los módulos Ngs2/Ult del propio usuario. |
+| Controles | Teclado y mando a la vez, cámara con el ratón, reasignación de teclas y del mando, vibración regulable, iconos Xbox/Nintendo dentro del juego. |
+| Modos | 60 FPS, filtro anisotrópico 16x, modo PS4 Pro, salida hasta 4K. |
+| Rendimiento | Hilo de preparación de dibujo y memos (DUDUYG), PGO de Clang, arreglos de CPU y memoria de otros forks. |
+
+### Preguntas frecuentes
+
+- **¿DirectX 11/12?** No. El núcleo de vídeo traduce la GPU del PS4 a Vulkan (shaders en SPIR-V). Toda
+  tarjeta con DirectX 12 moderno tiene también Vulkan 1.3: basta con el driver al día.
+- **¿AMD e Intel?** Esta versión se probó en una Radeon 780M. Dos optimizaciones solo se activan solas en
+  NVIDIA: el envío periódico a la GPU y las lecturas anticipadas. En **Imagen y FPS > Envío de trabajo a
+  la GPU**, elige **Activado** para usarlas en AMD o Intel (en la 780M dio +29% en las zonas pesadas). Si
+  la pantalla se queda en negro, vuelve a **Automático**.
+- **¿Por qué no viene el sonido?** Los dos `.sprx` son firmware de Sony; no se pueden distribuir. El
+  lanzador encuentra y copia los tuyos automáticamente.
+- **El juego se cerró solo.** Abre una *issue* con el archivo `user/last_run.log`.
 
 ### Compilar
 
@@ -59,6 +144,7 @@ de que o jogo precisa, no estilo do [bloodborne_pc](https://github.com/Supermedo
 
 | Versão | Melhorias e correções |
 |---|---|
+| **0.57-fixed.1** | **AMD RDNA3/RDNA4:** corrigido o bloco preto no canto inferior esquerdo (issue #43: faltava uma barreira entre o clear da janela e a cópia da imagem). **Sombras sem listras** no chão perto do Wander e do Agro (issue #27). **Texturas BC5/BC6H** criadas sem uso *storage* quando o driver da AMD recusa. **Desempenho:** base do DUDUYG (+5% contra a opt4) e PGO do Clang (+2,6%), medidos numa Radeon 780M. **Menu no jogo** (Insert ou L2 + R3), **ícones Xbox/Nintendo** nos avisos do jogo, **lançador em espanhol** e página de **Controles** com vibração e remapeamento do controle. |
 | **0.57** | **Placas AMD:** correção das cores verdes/rosas na névoa e nos personagens (as AMD passam a usar o caminho de 32 threads da NVIDIA; diagnóstico da issue #7, ainda não testado numa AMD). **Opção nova** no lançador para desligar o acesso direto à memória: ~10% mais FPS, água distante mais lisa. |
 | **0.56** | **Água do mundo aberto com ondas:** lagos e rios abaixo das cascatas não ficam mais lisos como espelho (uma instrução de shader, `S_WQM_B64`, era ignorada). **Lago de cima ondula e reflete até longe** (acesso direto à memória ligado por padrão, como no Pink-shadPS4). Árvores distantes sem "lixo colorido". |
 | **0.0.13** | **Sem quedas:** corrigida a queda na abertura/menu da 0.0.12 (o jogo pedia mais texturas do que cabe no pool). Testado ~40 min pelo mapa, com dois carregamentos de save. **Reflexos do lago** em quase toda a superfície, com ondulação (uma trava de laços dos shaders cortava os raios do reflexo). |
@@ -154,6 +240,7 @@ game needs, in the style of [bloodborne_pc](https://github.com/Supermedo/bloodbo
 
 | Version | Improvements and fixes |
 |---|---|
+| **0.57-fixed.1** | **AMD RDNA3/RDNA4:** fixed the black block in the lower left (issue #43: a barrier was missing between the window clear and the image copy). **Shadows without stripes** on the ground around Wander and Agro (issue #27). **BC5/BC6H textures** created without storage usage when AMD's driver refuses it. **Performance:** DUDUYG base (+5% vs opt4) and Clang PGO (+2.6%), measured on a Radeon 780M. **In-game menu** (Insert or L2 + R3), **Xbox/Nintendo icons** in the game's prompts, **Spanish launcher** and a **Controls** page with vibration and gamepad remapping. |
 | **0.57** | **AMD cards:** fix for the green/pink fog and characters (AMD now uses the NVIDIA 32-lane path; diagnosis from issue #7, not yet tested on an AMD card). **New launcher option** to turn off direct memory access: ~10% more FPS, flatter distant water. |
 | **0.56** | **Open-world water with waves:** lakes and rivers below the waterfalls are no longer flat as a mirror (a shader instruction, `S_WQM_B64`, was ignored). **The upper lake ripples and reflects far away** (direct memory access on by default, as in Pink-shadPS4). Distant trees without "colored garbage". |
 | **0.0.13** | **No more crashes:** fixed the 0.0.12 crash in the intro/menu (the game asked for more textures than its pool holds). Tested ~40 min across the map with two save loads. **Lake reflections** over almost the whole surface, with ripples (a shader loop guard cut the reflection rays short). |
