@@ -1161,10 +1161,34 @@ void TextureCache::SotcGlyphHook(Image& image) {
         return;
     }
     const auto* guest = std::bit_cast<const u8*>(info.guest_address);
-    if (!GuestReadable(guest, info.guest_size)) {
+    bool readable = GuestReadable(guest, info.guest_size);
+    // sotc: pages the port read-protects (page tracking) are read from their backing instead, so
+    // a glyph uploaded while its page is protected is still recognised (it stayed PlayStation).
+    std::vector<u8> backing;
+    if (!readable && info.guest_size <= 4_MB) {
+        backing.resize(info.guest_size);
+        readable = Core::Memory::Instance()->TryReadBacking(info.guest_address, backing.data(),
+                                                            info.guest_size);
+        if (readable) {
+            guest = backing.data();
+        }
+    }
+    const u64 hash = readable ? XXH3_64bits(guest, info.guest_size) : 0;
+    // sotc: SOTC_GLYPH_LOG=1 prints each distinct RGBA8 glyph-sized texture the hook sees.
+    static const bool glyph_log = std::getenv("SOTC_GLYPH_LOG") != nullptr;
+    if (glyph_log && rgba8) {
+        static std::unordered_set<u64> logged;
+        const u64 key = readable ? hash : (info.guest_address ^ 0xdead);
+        if (logged.size() < 64 && logged.insert(key).second) {
+            std::fprintf(stderr, "SOTC GLYPH %016llx %ux%u mips %u guest_size %llu readable %d known %d\n",
+                         static_cast<unsigned long long>(hash), info.size.width, info.size.height,
+                         info.resources.levels, static_cast<unsigned long long>(info.guest_size),
+                         readable ? 1 : 0, GlyphFiles().contains(hash) ? 1 : 0);
+        }
+    }
+    if (!readable) {
         return;
     }
-    const u64 hash = XXH3_64bits(guest, info.guest_size);
     if (replace && rgba8 && info.resources.layers == 1) {
         const GlyphReplacement* glyph = LoadGlyph(hash, info.resources.levels);
         if (glyph && glyph->width == info.size.width && glyph->height == info.size.height) {
