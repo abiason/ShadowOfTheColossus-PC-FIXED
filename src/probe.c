@@ -83,6 +83,39 @@ static void *allocate_image(size_t size) {
     return p;
 }
 #endif
+#ifndef _WIN32
+/* Reserva a imagem do jogo abaixo de 2 GiB no Linux. */
+static void *allocate_image_linux(size_t size) {
+    const uintptr_t start = UINT64_C(0x10000000);
+    const uintptr_t limit = UINT64_C(0x80000000);
+    const size_t reservation = UINT64_C(256) << 20;
+
+    if (size > reservation)
+        fail("image exceeds the 256 MiB reservation");
+
+    for (uintptr_t at = start; at <= limit - reservation;
+         at += UINT64_C(0x10000000)) {
+
+        void *p = mmap((void *)at, reservation,
+                       PROT_NONE,
+                       MAP_PRIVATE | MAP_ANONYMOUS |
+                       MAP_NORESERVE | MAP_FIXED_NOREPLACE,
+                       -1, 0);
+
+        if (p == MAP_FAILED)
+            continue;
+
+        if (mprotect(p, size, PROT_READ | PROT_WRITE) != 0)
+            fail("cannot enable image memory");
+
+        printf("Linux low image at %p, size %zu\n", p, size);
+        return p;
+         }
+
+         fail("no free 256 MiB region below 2 GiB");
+         return NULL;
+}
+#endif
 static void *allocate(size_t size) {
     void *low=runtime_low_map(size,PROT_READ|PROT_WRITE);
     if (low) return low;
@@ -621,6 +654,10 @@ static uint64_t patch_tcb_loads(const Segment *segments, uint64_t count) {
     return patched;
 }
 #endif
+#ifndef _WIN32
+uintptr_t runtime_sotc_heap(void) { return 0; }
+volatile long long runtime_speculative_faults = 0;
+#endif
 /* sotc: SSE4a and red-zone patches of the eboot (gpu/sotc), described by scripts/sotc_cpu.py. */
 #define SOTC_TRAMPOLINE_SIZE (UINT64_C(16) << 20)
 static void apply_sotc_cpu_patches(const char *path, const Segment *segments, uint64_t count, uint64_t size) {
@@ -1044,7 +1081,7 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     image = allocate_image(round_page(size) + SOTC_TRAMPOLINE_SIZE);
 #else
-    image = allocate(round_page(size) + SOTC_TRAMPOLINE_SIZE);
+    image = allocate_image_linux(round_page(size) + SOTC_TRAMPOLINE_SIZE);
 #endif
     if (fread(image, 1, size, f) != size || fgetc(f) != EOF) fail("incorrect memory image size");
     fclose(f);
@@ -1125,7 +1162,9 @@ int main(int argc, char **argv) {
 #endif
     if (sotc_cpu) apply_sotc_cpu_patches(sotc_cpu, segments, ns, size);
     if (sotc_cmdline) apply_sotc_cmdline(sotc_cmdline, size);
+#ifdef _WIN32
     if (sotc_cpu) install_heap_hook();
+#endif
     protect(traps, round_page((import_count + 1) * 32), 5);
     protect(image, round_page(size), 0);
     int executable_entry = 0;
