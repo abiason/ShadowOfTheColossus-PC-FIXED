@@ -1274,7 +1274,7 @@ void Rasterizer::FlushPeriodic() {
     // 500 -> 250 (2026-10-14): each readback waits for the GPU to finish the last submitted
     // chunk, so a smaller chunk shortens that wait (2.25 -> 1.8 ms per frame), +4% on average
     // over two ABAB cycles; 125 shortens it more but the extra submits cost as much.
-    static const u64 flush_us = [] {
+    static const u64 flush_us = []() -> u64 {
         if (const char* v = std::getenv("SOTC_FLUSH_US")) {
             return std::strtoull(v, nullptr, 10);
         }
