@@ -13,6 +13,23 @@
 
 ---
 
+## Linux / CachyOS / AMD RDNA4 — Experimental Support
+
+This fork includes experimental Linux compatibility for Shadow of the Colossus (PS4, CUSA08809).
+
+- **Tested on:** CachyOS, Ryzen 7 5700X, Radeon RX 9060 XT 16 GB, Mesa RADV/Vulkan.
+- **Results:** Functional gameplay and audio, with stable 30 FPS observed using MangoHud.
+- **Improvements:** Linux memory allocation, GCC build compatibility and reduced shadow artifacts.
+- **Limitations:** Remaining rendering issues and shader recompiler errors; experimental 60 FPS is less stable.
+
+**Build on Linux:** `env BB_PGO=off BB_LTO=OFF bash build.sh`
+
+**Full documentation:** [Linux / CachyOS / AMD RDNA4](docs/sotc/README-Linux-CachyOS-RDNA4.md)
+
+Linux support is experimental. Game dumps and proprietary firmware are not distributed.
+
+---
+
 ## Español
 
 Port nativo de **Shadow of the Colossus** de PS4 (Bluepoint, 2018; CUSA08809, versión EU 1.01)
