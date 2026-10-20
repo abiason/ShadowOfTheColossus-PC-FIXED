@@ -167,6 +167,74 @@ O resultado não garante 60 FPS constantes nem compatibilidade fora desse ambien
 Os artefatos locais são `out/validacao-pro-desempenho-30min.log` e
 `out/validacao-pro-desempenho-30min-resumo.json`, não versionados.
 
+#### Comparativo controlado no Santuário: culling de índices
+
+O launcher já oferece uma opção que passa `doIndexBufferCulling=0` e
+`doSunShadowIndexBufferCulling=0` ao motor do jogo. O script Linux original não
+passava esse arquivo de parâmetros. As opções foram testadas separadamente,
+mantendo PS4 Pro/Desempenho, EOP desligado e limite de 60 FPS.
+
+O usuário posicionou personagem e câmera no mesmo enquadramento do Santuário.
+Cada repetição aguardou 60 segundos de aquecimento após sua confirmação e mediu
+os 120 seguintes, usando `SOTC_FRAME_TIMES` e sem `SOTC_CMD_STATS`:
+
+| Métrica | Padrão | Culling de índices desligado |
+| --- | --- | --- |
+| FPS médio pelos intervalos de apresentação | 20,72 | 25,19 |
+| 1% low | 18,12 FPS | 21,46 FPS |
+| Frametime mediano | 48,1 ms | 39,8 ms |
+| Percentil 99 do frametime | 53,2 ms | 45,0 ms |
+
+O ganho observado de FPS foi de 21,6% nesse enquadramento, sem registros fatais
+ou avisos `SanitizeCopyLayers` em ambas as execuções. Não garante 30 FPS nessa
+cena nem o mesmo ganho em outras cenas. Em uma sessão posterior iniciada pela
+opção `--sotc-cmdline` do script, o usuário confirmou imagem, sombras, objetos
+e áudio corretos durante a jogabilidade com essas opções.
+
+Essa sessão completou os 10 minutos pelo timeout programado, sem registros fatais,
+perda do dispositivo, esgotamento de memória ou avisos `SanitizeCopyLayers`.
+Foram registradas 119 amostras periódicas, com mediana de 25,3 FPS, faixa de
+24,8–60,0 FPS e uso máximo de VRAM de 5.535 MB. A média dessas amostras foi
+30,14 FPS, incluindo os trechos iniciais mais rápidos; ela não substitui o
+comparativo controlado acima. O patamar final ficou próximo de 25 FPS.
+O log local é `out/validacao-script-culling-10min.log` e seu resumo é
+`out/validacao-script-culling-10min-resumo.json`, não versionados.
+Isso valida a passagem dos parâmetros pelo script nessa sessão, sem garantir
+ausência de problemas em todas as cenas ou em outros equipamentos.
+
+Uma coleta anterior com contadores detalhados também ficou próxima de 21 FPS.
+Na primeira comparação sem contadores, a carga variou nos primeiros 50 segundos;
+a média daquela janela não foi usada para atribuir ganho à instrumentação.
+Os contadores `work` são calculados por diferença de tempos, não constituindo
+uma medição isolada de uso de CPU.
+
+Os artefatos locais das repetições são `out/santuario-repeticao-padrao/` e
+`out/santuario-repeticao-culling-off/`. Os CSVs, marcadores de janela e resumos
+não são versionados. `tools/sotc_frame_summary.py` permite recalcular as métricas.
+
+Para reproduzir a opção de culling sem alterar os padrões do script, gere um
+arquivo de parâmetros separado a partir do seu próprio eboot EU 1.01:
+
+```bash
+mkdir -p out/culling-off
+python3 scripts/sotc_modes.py /caminho/para/CUSA08809 \
+  --out out/culling-off \
+  --cvars 'doIndexBufferCulling=0 doSunShadowIndexBufferCulling=0'
+
+bash tools/sotc_linux_pro.sh --sotc-cmdline out/culling-off/cmdline.bin \
+  /caminho/para/boot-linked.bin \
+  /caminho/para/CUSA08809 \
+  /caminho/para/content.bin
+```
+
+O gerador verifica a versão do eboot; se não for compatível, não cria o arquivo
+de parâmetros. O loader também verifica as instruções antes de aplicar o ajuste
+somente à imagem em memória. Nenhum arquivo do jogo é sobrescrito. O arquivo
+`patches.bin` gerado junto não é usado nesse comando; nenhum patch `fps60` é
+solicitado. Para voltar à configuração anterior, basta omitir `--sotc-cmdline`.
+Não basta exportar `SOTC_CVARS` ao executar `bb-probe` diretamente: o parâmetro
+precisa ser gerado e passado ao loader, como acima.
+
 ### Áudio
 
 O áudio foi testado com os módulos libSceNgs2.sprx e libSceUlt.sprx, obtidos legitimamente do firmware do próprio usuário.
