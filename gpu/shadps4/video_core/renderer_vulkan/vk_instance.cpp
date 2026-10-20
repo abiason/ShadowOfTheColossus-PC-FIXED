@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include <cstdlib>
 #include <boost/container/static_vector.hpp>
 #include <fmt/format.h>
@@ -167,6 +168,15 @@ Instance::Instance(Frontend::WindowSDL& window, s32 physical_device_index,
     properties = physical_device.getProperties();
     memory_properties = physical_device.getMemoryProperties();
     CollectDeviceParameters();
+    // sotc: log the selected GPU and driver after collecting the driver id used to decode its version.
+    std::fprintf(stderr, "GPU sparse: binding %d, residency buffer %d, non-resident strict %d\n",
+                 int(physical_device.getFeatures().sparseBinding),
+                 int(physical_device.getFeatures().sparseResidencyBuffer),
+                 int(properties.sparseProperties.residencyNonResidentStrict));
+    std::fprintf(stderr, "GPU: %s (vendor %04x, driver %s, Vulkan %u.%u)\n",
+                 properties.deviceName.data(), properties.vendorID,
+                 GetDriverVersionName().c_str(), VK_VERSION_MAJOR(properties.apiVersion),
+                 VK_VERSION_MINOR(properties.apiVersion));
     ASSERT_MSG(properties.apiVersion >= TargetVulkanApiVersion,
                "Vulkan {}.{} is required, but only {}.{} is supported by device!",
                VK_VERSION_MAJOR(TargetVulkanApiVersion), VK_VERSION_MINOR(TargetVulkanApiVersion),
@@ -265,6 +275,10 @@ bool Instance::CreateDevice() {
     vk13_props = properties_chain.get<vk::PhysicalDeviceVulkan13Properties>();
     push_descriptor_props = properties_chain.get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
     LOG_INFO(Render_Vulkan, "Physical device subgroup size {}", vk11_props.subgroupSize);
+    // sotc: expose the subgroup properties used by the shader recompiler in the session log.
+    std::fprintf(stderr, "GPU subgroups: size %u, min %u, max %u, required stages %#x\n",
+                 vk11_props.subgroupSize, vk13_props.minSubgroupSize, vk13_props.maxSubgroupSize,
+                 u32(vk13_props.requiredSubgroupSizeStages));
 
     if (available_extensions.empty()) {
         LOG_CRITICAL(Render_Vulkan, "No extensions supported by device.");

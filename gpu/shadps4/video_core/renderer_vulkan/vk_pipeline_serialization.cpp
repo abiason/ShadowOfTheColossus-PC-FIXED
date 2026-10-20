@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <optional>
+#include <mutex>
+#include <set>
+#include <unordered_set>
 #include <thread>
 #include "common/serdes.h"
 #include "core/emulator_settings.h"
@@ -26,9 +30,21 @@ static constexpr u32 PipelineKeyVersion = 3u;
 
 namespace Vulkan {
 
+namespace {
+std::mutex collided_mutex;
+// Keep the complete pair: folding an index into the program hash can itself collide.
+std::set<std::pair<u64, size_t>> collided_bins;
+std::unordered_set<size_t> collided_perms;
+
+bool IsCollidedPerm(size_t hash) {
+    std::scoped_lock lock{collided_mutex};
+    return collided_perms.contains(hash);
+}
+} // namespace
+
 void RegisterPipelineData(const ComputePipelineKey& key,
                           ComputePipeline::SerializationSupport& sdata) {
-    if (!Storage::DataBase::Instance().IsOpened()) {
+    if (!Storage::DataBase::Instance().IsOpened() || IsCollidedPerm(key.value)) {
         return;
     }
 
@@ -50,6 +66,9 @@ void RegisterPipelineData(const GraphicsPipelineKey& key, u64 hash,
     if (!Storage::DataBase::Instance().IsOpened()) {
         return;
     }
+    for (const auto stage_hash : key.stage_hashes) {
+        if (stage_hash && IsCollidedPerm(stage_hash)) return;
+    }
 
     Serialization::Archive ar{};
     Serialization::Writer pldata{ar};
@@ -70,6 +89,13 @@ void RegisterShaderMeta(const Shader::Info& info,
                         size_t perm_idx) {
     if (!Storage::DataBase::Instance().IsOpened()) {
         return;
+    }
+    {
+        std::scoped_lock lock{collided_mutex};
+        if (collided_bins.contains({info.pgm_hash, perm_idx})) {
+            collided_perms.insert(perm_hash);
+            return;
+        }
     }
 
     Serialization::Archive ar;
@@ -93,9 +119,17 @@ void RegisterShaderBinary(std::vector<u32>&& spv, u64 pgm_hash, size_t perm_idx)
         return;
     }
 
-    Storage::DataBase::Instance().Save(Storage::BlobType::ShaderBinary,
-                                       fmt::format("{:#018x}_{}", pgm_hash, perm_idx),
-                                       std::move(spv));
+    const auto name = fmt::format("{:#018x}_{}", pgm_hash, perm_idx);
+    if (!Storage::DataBase::Instance().SaveShaderBinary(name, std::move(spv))) {
+        static std::atomic<u32> reported{0};
+        if (reported.fetch_add(1, std::memory_order_relaxed) < 8) {
+            LOG_WARNING(Render_Vulkan,
+                        "Shader permutation {} conflicts with stored/pending bytes or cannot be "
+                        "saved: not cached", name);
+        }
+        std::scoped_lock lock{collided_mutex};
+        collided_bins.emplace(pgm_hash, perm_idx);
+    }
 }
 
 bool LoadShaderMeta(Serialization::Archive& ar, Shader::Info& info,

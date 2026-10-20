@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -1782,7 +1783,13 @@ bool BufferCache::SynchronizeMemoryFromImage(const Buffer* arena, VAddr device_a
             runtime.FillBuffer(arena, arena->Offset(device_addr), size, ZmaskUncompressed);
             return true;
         } else {
-            LOG_WARNING(Render_Vulkan, "Unhandled metadata type {}", magic_enum::enum_name(*type));
+            // sotc: avoid repeated per-draw diagnostics after the first few occurrences.
+            static std::atomic<u32> shown{0};
+            const u32 occurrence = shown.fetch_add(1, std::memory_order_relaxed);
+            if (occurrence < 4) {
+                LOG_WARNING(Render_Vulkan, "Unhandled metadata type {} (logged {} of 4)",
+                            magic_enum::enum_name(*type), occurrence + 1);
+            }
         }
     }
     // sotc: only an image starting at device_addr counts, and it is registered in the granule
@@ -1868,8 +1875,10 @@ std::pair<vk::DeviceMemory, u64> BufferCache::AllocateArenaBlocks(u64 blocks) {
         }
         return std::nullopt;
     };
-    const auto grow = [&](u32 memory_type) -> std::optional<std::pair<vk::DeviceMemory, u64>> {
-        const u64 chunk_blocks = std::max<u64>(ARENA_CHUNK_SIZE >> block_shift, blocks);
+    const auto grow = [&](u32 memory_type, bool exact = false)
+        -> std::optional<std::pair<vk::DeviceMemory, u64>> {
+        // exact: only the requested size when there is no room for a whole 64 MiB chunk.
+        const u64 chunk_blocks = exact ? blocks : std::max<u64>(ARENA_CHUNK_SIZE >> block_shift, blocks);
         const vk::MemoryAllocateInfo alloc_info = {
             .allocationSize = chunk_blocks << block_shift,
             .memoryTypeIndex = memory_type,
@@ -1916,9 +1925,21 @@ std::pair<vk::DeviceMemory, u64> BufferCache::AllocateArenaBlocks(u64 blocks) {
     texture_cache.EmergencyCollect();
     scheduler.Finish();
     scheduler.PopPendingOperations();
-    auto placed = grow(arena_memory_type_index);
-    ASSERT_MSG(placed.has_value(), "Failed to allocate buffer arena memory");
-    return *placed;
+    if (auto placed = grow(arena_memory_type_index)) {
+        return *placed;
+    }
+    // sotc: try the requested size alone, then system memory, before giving up (#137).
+    if (auto placed = grow(arena_memory_type_index, true)) {
+        return *placed;
+    }
+    if (arena_fallback_memory_type_index) {
+        if (auto placed = grow(*arena_fallback_memory_type_index, true)) {
+            return *placed;
+        }
+    }
+    LOG_CRITICAL(Render, "Out of video and system memory for buffers");
+    ASSERT_MSG(false, "Failed to allocate buffer arena memory");
+    return {};
 }
 
 void BufferCache::FreeArenaBlocks(vk::DeviceMemory memory, u64 start, u64 blocks) {

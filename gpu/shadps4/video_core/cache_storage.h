@@ -39,6 +39,8 @@ public:
 
     bool Save(BlobType type, const std::string& name, std::vector<u8>&& data);
     bool Save(BlobType type, const std::string& name, std::vector<u32>&& data);
+    // Refuse different bytes under an existing or queued shader permutation name.
+    bool SaveShaderBinary(const std::string& name, std::vector<u32>&& data);
 
     void Load(BlobType type, const std::string& name, std::vector<u8>& data);
     void Load(BlobType type, const std::string& name, std::vector<u32>& data);
