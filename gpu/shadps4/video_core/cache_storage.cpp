@@ -7,8 +7,10 @@
 #include "common/polyfill_thread.h"
 #include "common/thread.h"
 #include "core/emulator_settings.h"
+#include "core/libraries/kernel/process.h"
 
 #include "video_core/cache_storage.h"
+#include "video_core/shader_binary_store.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_driver_cache.h"
@@ -28,6 +30,7 @@ std::condition_variable_any request_cv{};
 std::queue<std::packaged_task<void()>> req_queue{};
 std::mutex m_request{};
 bool accept_requests{}; // protected by m_request
+Storage::ShaderBinaryStore shader_binary_store;
 
 mz_zip_archive zip_ar{};
 bool ar_is_read_only{true};
@@ -107,10 +110,12 @@ void DataBase::Open() {
         }
     } else {
         // sotc: shaders compiled with and without direct memory access differ, and the cache keys
-        // do not tell them apart: the launcher's DMA switch gets its own cache folder.
+        // do not tell them apart: the launcher's DMA switch gets its own cache folder. PS4 Pro
+        // mode also needs its own folder to avoid reusing its shaders in normal mode.
         cache_path = GetUserPath(PathType::CacheDir) /
                      (std::string{game_info.GameSerial()} +
-                      (EmulatorSettings.IsDirectMemoryAccessEnabled() ? "" : "_nodma"));
+                      (EmulatorSettings.IsDirectMemoryAccessEnabled() ? "" : "_nodma") +
+                      (Libraries::Kernel::sceKernelIsNeoMode() ? "_neo" : ""));
         if (!std::filesystem::exists(cache_path)) {
             std::filesystem::create_directories(cache_path);
         }
@@ -254,6 +259,27 @@ bool DataBase::Save(BlobType type, const std::string& name, std::vector<u32>&& d
     auto path = EmulatorSettings.IsPipelineCacheArchived() ? std::filesystem::path{name}
                                                            : cache_path / name;
     return WriteVector(type, std::move(path), std::move(data));
+}
+
+bool DataBase::SaveShaderBinary(const std::string& name, std::vector<u32>&& data) {
+    if (!opened) return false;
+    if (EmulatorSettings.IsPipelineCacheArchived()) {
+        return Save(BlobType::ShaderBinary, name, std::move(data));
+    }
+    auto path = cache_path / name;
+    path.replace_extension(GetBlobFileExtension(BlobType::ShaderBinary));
+    const auto result = shader_binary_store.Save(path, std::move(data),
+        [](std::packaged_task<void()>&& task) {
+            {
+                std::scoped_lock lock{m_request};
+                if (!accept_requests) return false;
+                req_queue.emplace(std::move(task));
+            }
+            request_cv.notify_one();
+            return true;
+        },
+        [path] { LOG_WARNING(Render, "Could not publish shader cache file {}", path.string()); });
+    return result == ShaderBinaryStore::Result::Accepted;
 }
 
 void DataBase::Load(BlobType type, const std::string& name, std::vector<u8>& data) {

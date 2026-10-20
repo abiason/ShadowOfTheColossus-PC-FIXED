@@ -215,6 +215,11 @@ if (WIN32)
 endif()
 
 # Explicit test targets; none launches the game.
+add_executable(shader-binary-store-test EXCLUDE_FROM_ALL ../tests/test_shader_binary_store.cpp)
+target_compile_options(shader-binary-store-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_compile_definitions(shader-binary-store-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_include_directories(shader-binary-store-test PRIVATE shadps4)
+target_link_libraries(shader-binary-store-test PRIVATE Threads::Threads)
 add_executable(sotc-present-test EXCLUDE_FROM_ALL ../tests/test_sotc_present.cpp)
 target_compile_options(sotc-present-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_include_directories(sotc-present-test PRIVATE shadps4)

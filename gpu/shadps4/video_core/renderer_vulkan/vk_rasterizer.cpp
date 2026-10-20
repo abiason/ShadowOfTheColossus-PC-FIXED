@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -2053,8 +2054,12 @@ void Rasterizer::BindTexturesSlow(const Shader::Info& stage, Shader::Backend::Bi
         }
         // Diagnostic only (a hash lookup per texture): SOTC_META_WARN=1 enables it.
         static const bool meta_warn = std::getenv("SOTC_META_WARN") != nullptr;
-        if (meta_warn && texture_cache.IsMeta(tsharp.Address())) {
-            LOG_WARNING(Render_Vulkan, "Unexpected metadata read by a shader (texture)");
+        static std::atomic<u32> meta_shown{0};
+        if (meta_warn && meta_shown.load(std::memory_order_relaxed) < 4 &&
+            texture_cache.IsMeta(tsharp.Address())) {
+            if (meta_shown.fetch_add(1, std::memory_order_relaxed) < 4) {
+                LOG_WARNING(Render_Vulkan, "Unexpected metadata read by a shader (texture)");
+            }
         }
 
         const auto data_fmt = tsharp.GetDataFmt();
