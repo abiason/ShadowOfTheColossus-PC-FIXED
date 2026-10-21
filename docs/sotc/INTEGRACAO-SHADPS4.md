@@ -213,3 +213,27 @@ O teste do jogo não garante cobertura de todos os casos multi-mip na GPU;
 o teste local de layout complementa a verificação, sem substituir validação
 Vulkan específica. Não há conclusão de ganho de desempenho.
 Logs: `out/validacao-shadps4-copy-mips/`.
+
+## Reavaliação FMASK com orçamento Neo: 14ada48a (em preparação)
+
+Branch `reavaliacao-shadps4-fmask-5376`. Patch upstream de uma linha:
+EliminateFastClear é chamado antes de ignorar FmaskDecompress. A função
+existente verifica alvo válido, fast_clear e metadados pendentes antes de limpar.
+Não muda os shaders. O teste anterior com 5056 MiB falhou em 0x1a371;
+posteriormente a mesma assinatura foi reproduzida na main sem esse patch,
+com bitmap zerado, portanto a causa não foi atribuída a FMASK.
+
+Esta reavaliação usa 5376 MiB, orçamento agora padrão do launcher PS4 Pro,
+e mantém os demais parâmetros do teste de demonstração sem interação.
+O teste será realizado com uma cópia preservada do loader de diagnóstico
+para capturar a tabela se a falha voltar; os diagnósticos não são incorporados
+nesta branch. A biblioteca GPU é a desta branch. Logs, loader e seu hash
+ficam em `out/validacao-shadps4-fmask-5376/`. Teste controlado ainda não iniciado.
+Ausência de falha não comprova cobertura específica de todas as passagens FMASK.
+
+O teste autorizado completou 600 segundos pelo watchdog (saída 142), com
+119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo Vulkan
+registrada. O log confirma Neo, 5376 MiB e zero memória de depuração, mas não
+registra marcadores st_gameflow; confirmação visual da demonstração e do
+áudio ainda pendente. Não há conclusão de ganho de desempenho ou resolução
+definitiva da falha intermitente.
