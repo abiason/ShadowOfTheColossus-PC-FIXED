@@ -7,6 +7,7 @@ usage() {
 Usage: bash tools/sotc_linux_pro.sh [--dry-run] [--sotc-cmdline FILE] BOOT_LINKED GAME_DIR CONTENT_PROFILE [SECONDS]
 
 Uses PS4 Pro, a 60 FPS host limit, 60 Hz vblank and SOTC_EOP_DEFER=0.
+Direct memory defaults to 5376 MiB; BB_DMEM_MB can override it.
 Select Performance in the game's Options > Presentation menu.
 SECONDS defaults to 0 (no automatic timeout).
 SOTC_USER_DIR optionally selects the user directory (default: repository/user).
@@ -65,6 +66,7 @@ settings=(
     SOTC_FPS=1
     BB_DIRECT_MEMORY_ACCESS=0
     SOTC_NEO=1
+    "BB_DMEM_MB=${BB_DMEM_MB:-5376}"
     SOTC_RB_ASYNC=0
     "BB_GPU_USER_DIR=$user_dir"
 )
