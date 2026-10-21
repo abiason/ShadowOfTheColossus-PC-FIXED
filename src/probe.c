@@ -27,6 +27,7 @@
 #include <execinfo.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
+#include "fault_snapshot.h"
 #endif
 
 typedef struct { uint64_t address, size, flags; } Segment;
@@ -735,6 +736,62 @@ static void fault(int sig, siginfo_t *info, void *context) {
     else
         snprintf(line, sizeof(line), "Fault (signal %d) at RIP %p, address %p\n", sig, (void *)rip, info->si_addr);
     { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+    /* Fatal faults only: use saved registers without dereferencing guest pointers. */
+    snprintf(line, sizeof(line),
+             "  tid=%ld si_code=%d RIP=%#llx RSP=%#llx RBP=%#llx ERR=%#llx TRAP=%lld\n",
+             (long)gettid(), info->si_code,
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RIP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RSP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RBP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_ERR],
+             (long long)uc->uc_mcontext.gregs[REG_TRAPNO]);
+    { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+    static const int fault_regs[] = {REG_RAX, REG_RBX, REG_RCX, REG_RDX, REG_RSI, REG_RDI,
+                                     REG_R8, REG_R9, REG_R10, REG_R11, REG_R12, REG_R13,
+                                     REG_R14, REG_R15};
+    static const char *const fault_reg_names[] = {"RAX", "RBX", "RCX", "RDX", "RSI", "RDI",
+                                                 "R8", "R9", "R10", "R11", "R12", "R13",
+                                                 "R14", "R15"};
+    for (size_t i = 0; i < sizeof(fault_regs) / sizeof(fault_regs[0]); ++i) {
+        snprintf(line, sizeof(line), "  %s=%#llx\n", fault_reg_names[i],
+                 (unsigned long long)uc->uc_mcontext.gregs[fault_regs[i]]);
+        ssize_t written_=write(2, line, strlen(line)); (void)written_;
+    }
+    if (rip - (uintptr_t)image == 0x1a371) {
+        FaultSnapshot snapshot;
+        const uintptr_t object = (uintptr_t)uc->uc_mcontext.gregs[REG_R14];
+        const uintptr_t table = (uintptr_t)uc->uc_mcontext.gregs[REG_R9];
+        const uint64_t words = (uint64_t)uc->uc_mcontext.gregs[REG_RDX];
+        fault_snapshot(&snapshot, object, table, words,
+                       (uintptr_t)uc->uc_mcontext.gregs[REG_RSP]);
+        snprintf(line, sizeof(line),
+                 "  snapshot object=%#lx bytes=%zd errno=%d stack_bytes=%zd errno=%d\n",
+                 (unsigned long)object, snapshot.object_bytes, snapshot.object_error,
+                 snapshot.stack_bytes, snapshot.stack_error);
+        { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+        for (size_t i = 0; i < (snapshot.object_bytes > 0 ? (size_t)snapshot.object_bytes / 8 : 0); ++i) {
+            snprintf(line, sizeof(line), "  object+%#zx=%#llx\n", i * 8,
+                     (unsigned long long)snapshot.object[i]);
+            ssize_t written_=write(2, line, strlen(line)); (void)written_;
+        }
+        snprintf(line, sizeof(line),
+                 "  table=%#lx requested_words=%llu bytes=%zu nonzero=%zu bits=%zu first_nonzero=%#llx errno=%d capped=%d\n",
+                 (unsigned long)table, (unsigned long long)words, snapshot.table_bytes,
+                 snapshot.nonzero_words, snapshot.set_bits,
+                 (unsigned long long)snapshot.first_nonzero_word,
+                 snapshot.table_error, snapshot.table_truncated);
+        { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+        for (size_t i = 0; i < 16 && i < snapshot.table_bytes / 8; ++i) {
+            snprintf(line, sizeof(line), "  table[%zu]=%#llx\n", i,
+                     (unsigned long long)snapshot.table_prefix[i]);
+            ssize_t written_=write(2, line, strlen(line)); (void)written_;
+        }
+        for (size_t i = 0; i < (snapshot.stack_bytes > 0 ? (size_t)snapshot.stack_bytes / 8 : 0); ++i) {
+            snprintf(line, sizeof(line), "  stack+%#zx=%#llx\n", i * 8,
+                     (unsigned long long)snapshot.stack[i]);
+            ssize_t written_=write(2, line, strlen(line)); (void)written_;
+        }
+    }
     if (gpu_enabled) bbgpu_dump_guest_writes(context);
     /* Host call chain (frames with unwind info; guest frames end it). */
     void *frames[32];

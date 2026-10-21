@@ -12,6 +12,7 @@
 #undef near
 #else
 #include <ucontext.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #endif
 #include <x86intrin.h>
@@ -110,17 +111,19 @@ extern "C" void bbgpu_dump_guest_writes(void* ucontext) {
 #ifdef _WIN32
     // The loader passes EXCEPTION_POINTERS (see signal_context.cpp).
     const CONTEXT* c = static_cast<const EXCEPTION_POINTERS*>(ucontext)->ContextRecord;
-    const std::uint64_t regs[] = {c->Rax, c->Rbx, c->Rcx, c->Rdx, c->Rsi, c->Rdi, c->R14, c->R15};
+    const std::uint64_t regs[] = {c->Rax, c->Rbx, c->Rcx, c->Rdx, c->Rsi, c->Rdi,
+                                  c->R14, c->R15, c->R8, c->R9};
 #else
     const auto* uc = static_cast<const ucontext_t*>(ucontext);
     const auto* g = uc->uc_mcontext.gregs;
     const std::uint64_t regs[] = {std::uint64_t(g[REG_RAX]), std::uint64_t(g[REG_RBX]),
                                   std::uint64_t(g[REG_RCX]), std::uint64_t(g[REG_RDX]),
                                   std::uint64_t(g[REG_RSI]), std::uint64_t(g[REG_RDI]),
-                                  std::uint64_t(g[REG_R14]), std::uint64_t(g[REG_R15])};
+                                  std::uint64_t(g[REG_R14]), std::uint64_t(g[REG_R15]),
+                                  std::uint64_t(g[REG_R8]), std::uint64_t(g[REG_R9])};
 #endif
-    const char* names[] = {"rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r14", "r15"};
-    for (int i = 0; i < 8; ++i) {
+    const char* names[] = {"rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r14", "r15", "r8", "r9"};
+    for (std::size_t i = 0; i < std::size(regs); ++i) {
         std::fprintf(stderr, "Write log: %s=%#llx\n", names[i], (unsigned long long)regs[i]);
     }
     const char* sources[] = {"backing",      "WriteData",           "fence",
@@ -147,7 +150,22 @@ extern "C" void bbgpu_dump_guest_writes(void* ucontext) {
     const std::uint64_t block = regs[0];
     for (std::uint64_t at = block - 0x30; at < block + 0x60; at += 8) {
         std::uint64_t value = 0;
-        std::memcpy(&value, reinterpret_cast<const void*>(at), 8);
+        // A fatal fault may leave rax noncanonical. Diagnostics must not fault again.
+#ifdef _WIN32
+        SIZE_T copied = 0;
+        const bool readable = ReadProcessMemory(GetCurrentProcess(),
+            reinterpret_cast<const void*>(at), &value, sizeof(value), &copied) &&
+            copied == sizeof(value);
+#else
+        iovec local{&value, sizeof(value)};
+        iovec remote{reinterpret_cast<void*>(at), sizeof(value)};
+        const bool readable = process_vm_readv(getpid(), &local, 1, &remote, 1, 0) ==
+                              static_cast<ssize_t>(sizeof(value));
+#endif
+        if (!readable) {
+            std::fprintf(stderr, "Write log: [%#llx] unreadable\n", (unsigned long long)at);
+            continue;
+        }
         std::fprintf(stderr, "Write log: [%#llx] = %#llx\n", (unsigned long long)at,
                      (unsigned long long)value);
     }
