@@ -214,19 +214,43 @@ o teste local de layout complementa a verificação, sem substituir validação
 Vulkan específica. Não há conclusão de ganho de desempenho.
 Logs: `out/validacao-shadps4-copy-mips/`.
 
-## IMAGE_GATHER4_C_L: 3a9f5726 (em preparação)
+## Reavaliação FMASK com orçamento Neo: 14ada48a (em preparação)
+
+Branch `reavaliacao-shadps4-fmask-5376`. Patch upstream de uma linha:
+EliminateFastClear é chamado antes de ignorar FmaskDecompress. A função
+existente verifica alvo válido, fast_clear e metadados pendentes antes de limpar.
+Não muda os shaders. O teste anterior com 5056 MiB falhou em 0x1a371;
+posteriormente a mesma assinatura foi reproduzida na main sem esse patch,
+com bitmap zerado, portanto a causa não foi atribuída a FMASK.
+
+Esta reavaliação usa 5376 MiB, orçamento agora padrão do launcher PS4 Pro,
+e mantém os demais parâmetros do teste de demonstração sem interação.
+O teste será realizado com uma cópia preservada do loader de diagnóstico
+para capturar a tabela se a falha voltar; os diagnósticos não são incorporados
+nesta branch. A biblioteca GPU é a desta branch. Logs, loader e seu hash
+ficam em `out/validacao-shadps4-fmask-5376/`. Teste controlado ainda não iniciado.
+Ausência de falha não comprova cobertura específica de todas as passagens FMASK.
+
+O teste autorizado completou 600 segundos pelo watchdog (saída 142), com
+119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo Vulkan
+registrada. O log confirma Neo, 5376 MiB e zero memória de depuração, mas não
+registra marcadores st_gameflow; usuário confirmou demonstração, imagem,
+cores, sombras e áudio normais. Não há conclusão de ganho de desempenho ou resolução
+definitiva da falha intermitente.
+
+## IMAGE_GATHER4_C_L: 3a9f5726
 
 Branch `integracao-shadps4-gather4-cl`, baseada na main com orçamento PS4 Pro
-5376 MiB, sem FMASK/CLAMP/LDS. Adiciona a instrução IMAGE_GATHER4_C_L ao
+5376 MiB. O teste isolado não incluiu FMASK/CLAMP/LDS. Adiciona a instrução IMAGE_GATHER4_C_L ao
 dispatch já existente de IMAGE_GATHER, conforme patch upstream de uma linha.
 O caminho compartilhado interpreta os modificadores de comparação e LOD;
 esta alteração não introduz um tradutor separado.
 
 A geração local de shaders avança de 36 para 38 para não compartilhar a
-geração 37 do experimento CLAMP ainda não integrado. O próximo teste deve
-usar cache separado e 5376 MiB. Logs: `out/validacao-shadps4-gather4-cl/`.
-Teste controlado ainda não iniciado; teste geral de partida não demonstra
-uso dessa instrução específica nem cobertura de todos os shaders.
+geração 37 do experimento CLAMP ainda não integrado. O teste usou
+cache separado e 5376 MiB. Logs: `out/validacao-shadps4-gather4-cl/`.
+O teste geral de partida não demonstra uso dessa instrução específica
+nem cobertura de todos os shaders.
 
 O teste autorizado posterior completou 600 segundos pelo watchdog (saída
 142), com 119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo
@@ -234,3 +258,7 @@ Vulkan registrada. Usou demonstração sem interação, 5376 MiB, fullscreen,
 patch fps60 e cache separado; loader de diagnóstico preservado e biblioteca
 GPU desta branch. O log não contém marcadores st_gameflow. Usuário confirmou
 demonstração, imagem, sombras e áudio normais; não comprova cobertura da instrução específica.
+
+Após a confirmação dos dois testes isolados, a branch gather foi atualizada
+com a main contendo FMASK; a combinação compilou, mas não houve novo teste
+controlado da combinação nesta etapa. CLAMP e LDS continuam excluídos.
