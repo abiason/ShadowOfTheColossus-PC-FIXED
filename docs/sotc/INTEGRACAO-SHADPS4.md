@@ -159,3 +159,24 @@ KHR (`e0cd957a`), tipo do resultado de cube-face (`4cbd23ef`) e instruções
 V_MIN_F64/V_TRUNC_F64 (`282f6445`, `53af37af`) já têm implementação local
 correspondente e não foram reaplicadas. Isso não significa equivalência
 integral entre o recompilador local e a versão upstream.
+
+## Cópias entre contagens de camadas distintas: afde6318 (em validação)
+
+Branch `integracao-shadps4-copy-layers`, baseada na main sem CLAMP/LDS.
+CopyImageWithBuffer já calcula min(src.layers, dst.layers); o upstream remove
+a exigência redundante de igualdade das contagens, mantendo a restrição de
+um único mip. A adaptação local permite esse caso também na seleção do
+caminho intermediário para formatos de profundidade diferentes, preservando
+a proteção RDNA4 contra cópias diretas incompatíveis D32/D32S8.
+
+O buffer temporário continua dimensionado pela contagem de camadas da origem,
+que é maior ou igual ao mínimo copiado. Permanecem o limite inferior de 17 MiB,
+alinhamento e uso de alocação dedicada sincronizada por tick. A geração de
+shaders permanece em 36. Logs: `out/validacao-shadps4-copy-layers/`.
+Teste de compatibilidade em jogo pendente; uma partida comum não garante
+cobertura do caso de contagens distintas ou de todos os formatos de profundidade.
+
+Execução de 600 segundos concluída pelo watchdog (saída 142), com 119 amostras
+até 597 segundos, sem falha fatal ou perda do dispositivo Vulkan registrada.
+Usuário confirmou imagem e áudio normais durante o teste. O resultado não
+comprova ganho de desempenho nem cobertura específica das contagens distintas.
