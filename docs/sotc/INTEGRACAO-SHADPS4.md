@@ -139,3 +139,23 @@ com a cópia de todos os mipmaps. O caminho local também contém proteção
 contra cópias incompatíveis entre formatos de profundidade; não deve ser
 substituído diretamente pelo upstream. Correções de índices nulos exigem
 revisar o caminho local de buffers antes de adaptação.
+
+## Escopo EXEC após branch vazio: c34ca21f
+
+Branch `integracao-shadps4-exec-scope`. Ao descartar um escopo vazio, mantém
+o início do próximo escopo se a instrução também abre um novo escopo, em vez
+de limpar incondicionalmente curr_begin. Patch upstream de uma linha aplicado
+sem alterações funcionais. A geração local de shaders avança de 35 para 36.
+Não inclui o experimento LDS. Logs em `out/validacao-shadps4-exec-scope/`;
+teste com cache separado. Compilação incremental e diff check passaram.
+Execução de 600 segundos em fullscreen, com patch fps60, limite de 60 FPS
+e vblank emulado de 60 Hz, sem falha fatal ou perda do dispositivo Vulkan
+registrada; última amostra aos 596 segundos. Encerramento pelo watchdog,
+saída 142. Usuário confirmou imagem, efeitos, sombras e áudio normais.
+Arquivos locais modificados do FSR preservados. Sem conclusão de ganho de FPS.
+
+Triagem adicional: as mudanças de gradientes/offsets 1D (`e754ce62`), SampleId
+KHR (`e0cd957a`), tipo do resultado de cube-face (`4cbd23ef`) e instruções
+V_MIN_F64/V_TRUNC_F64 (`282f6445`, `53af37af`) já têm implementação local
+correspondente e não foram reaplicadas. Isso não significa equivalência
+integral entre o recompilador local e a versão upstream.
