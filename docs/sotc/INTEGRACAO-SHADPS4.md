@@ -113,3 +113,29 @@ fullscreen com patch fps60, limite de 60 FPS e vblank emulado de 60 Hz:
 registrada. Encerramento pelo watchdog, saída 142. Usuário confirmou texturas,
 sombras, efeitos e áudio normais. Arquivos locais modificados do FSR preservados.
 Rotas não controladas; sem conclusão de ganho de desempenho.
+
+## Operações atômicas em imagens 1D: 5ae2caf3
+
+Branch `integracao-shadps4-image-atomics`. Corrige coordenadas de
+OpImageTexelPointer em operações atômicas U32, F32 e compare-and-swap.
+Imagens Color1D recebem coordenadas (x, 0); Color1DArray recebe (x, 0, slice),
+compatíveis com a representação 2D usada pelo backend. Outros tipos passam
+sem transformação. Correção do upstream aplicada sem alterações funcionais.
+A geração de shaders avança de 34 para 35. A alteração LDS permanece excluída.
+Esta geração 35 não deve reutilizar o cache do experimento LDS, que usou o
+mesmo número em uma biblioteca não publicada; o teste usa cache separado.
+
+Logs: `out/validacao-shadps4-image-atomics/`. Compilação incremental e diff
+check passaram. Execução de 600 segundos com cache separado, fullscreen,
+patch fps60, limite de 60 FPS e vblank emulado de 60 Hz: sem falha fatal ou
+perda do dispositivo Vulkan registrada; última amostra aos 597 segundos.
+Encerramento pelo watchdog, saída 142. Usuário confirmou texturas, efeitos
+e áudio normais. Alterações locais do FSR preservadas.
+Um teste geral do jogo não garante cobertura de atomics em imagens 1D.
+
+Na revisão de cópias Vulkan, `b3d46e96` foi adiado: o dimensionamento local
+do buffer temporário cobre apenas o nível base e precisa ser ampliado junto
+com a cópia de todos os mipmaps. O caminho local também contém proteção
+contra cópias incompatíveis entre formatos de profundidade; não deve ser
+substituído diretamente pelo upstream. Correções de índices nulos exigem
+revisar o caminho local de buffers antes de adaptação.
