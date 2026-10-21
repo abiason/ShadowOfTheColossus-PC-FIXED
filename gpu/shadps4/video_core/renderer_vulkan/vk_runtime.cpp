@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include "common/alignment.h"
+#include "video_core/renderer_vulkan/buffer_copy_layout.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -375,28 +376,12 @@ void Runtime::CopyImage(VideoCore::Image* src, VideoCore::Image* dst) {
 }
 
 void Runtime::CopyImageWithBuffer(VideoCore::Image* src, VideoCore::Image* dst,
-                                  const VideoCore::Buffer* buffer, u64 offset) {
-    const u32 num_mips = std::min(src->info.resources.levels, dst->info.resources.levels);
-    const u32 num_layers = std::min(src->info.resources.layers, dst->info.resources.layers);
-    ASSERT(num_mips == 1);
-
+                                  const VideoCore::Buffer* buffer, u64 offset,
+                                  std::span<vk::BufferImageCopy> copies, u64 copy_size) {
+    ASSERT(!copies.empty());
+    ASSERT(offset <= buffer->SizeBytes() && copy_size <= buffer->SizeBytes() - offset);
     SetBackingSamples(dst, dst->info.num_samples, false);
     SetBackingSamples(src, src->info.num_samples);
-
-    vk::BufferImageCopy buffer_copy = {
-        .bufferOffset = offset,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource{
-            .aspectMask = src->aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
-            .mipLevel = 0u,
-            .baseArrayLayer = 0,
-            .layerCount = num_layers,
-        },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {src->info.size.width, src->info.size.height, src->info.size.depth},
-    };
-    const auto copy_size = BufferImageCopySize(buffer_copy, src->info.pixel_format);
 
     scheduler.EndRendering();
 
@@ -412,7 +397,7 @@ void Runtime::CopyImageWithBuffer(VideoCore::Image* src, VideoCore::Image* dst,
 
     auto cmdbuf = scheduler.CommandBuffer();
     cmdbuf.copyImageToBuffer(src->GetImage(), vk::ImageLayout::eTransferSrcOptimal,
-                             buffer->Handle(), buffer_copy);
+                             buffer->Handle(), copies);
 
     const vk::MemoryBarrier2 post_copy_barrier = {
         .srcStageMask = vk::PipelineStageFlagBits2::eCopy,
@@ -426,9 +411,11 @@ void Runtime::CopyImageWithBuffer(VideoCore::Image* src, VideoCore::Image* dst,
         .pMemoryBarriers = &post_copy_barrier,
     });
 
-    buffer_copy.imageSubresource.aspectMask = dst->aspect_mask & ~vk::ImageAspectFlagBits::eStencil;
+    for (auto& copy : copies) {
+        copy.imageSubresource.aspectMask = dst->aspect_mask & ~vk::ImageAspectFlagBits::eStencil;
+    }
     cmdbuf.copyBufferToImage(buffer->Handle(), dst->GetImage(),
-                             vk::ImageLayout::eTransferDstOptimal, buffer_copy);
+                             vk::ImageLayout::eTransferDstOptimal, copies);
 
     dst->flags |= (src->flags & VideoCore::ImageFlagBits::GpuModified);
     dst->flags &= ~VideoCore::ImageFlagBits::Dirty;
@@ -494,31 +481,30 @@ void Runtime::CopyColorAndDepth(VideoCore::Image* src, VideoCore::Image* dst) {
         const bool depth_format_mismatch = src->info.props.is_depth &&
                                            dst->info.props.is_depth &&
                                            src->info.pixel_format != dst->info.pixel_format;
-        const bool buffer_copy_possible =
-            std::min(src->info.resources.levels, dst->info.resources.levels) == 1;
-        if (!(depth_format_mismatch && buffer_copy_possible) &&
+        if (!depth_format_mismatch &&
             (instance.IsMaintenance8Supported() ||
              src->info.props.is_depth == dst->info.props.is_depth)) {
             CopyImage(src, dst);
         } else {
             // Perform depth from/to color copy using the intermediate copy buffer.
-            // sotc: sized to the copy (was a fixed 128 MiB of video memory, ~8 MiB needed for a
-            // 1080p depth buffer). CopyImageWithBuffer writes level 0 of every source layer with
-            // the source format and reads the same region back with the destination format.
-            // At least 17 MiB: above the staging ring's 16 MiB blocks the request keeps getting a
-            // dedicated, tick-synchronized buffer as before, not a ring slice that unsynchronized
-            // ring users (the tiler) could reuse while this copy is in flight.
-            const vk::BufferImageCopy probe = {
-                .imageSubresource{.layerCount = src->info.resources.layers},
-                .imageExtent = {src->info.size.width, src->info.size.height, src->info.size.depth},
-            };
-            const u64 copy_buffer_size = Common::AlignUp(
-                std::max<u64>({BufferImageCopySize(probe, src->info.pixel_format),
-                               BufferImageCopySize(probe, dst->info.pixel_format), 17_MB}),
-                u64{256});
+            // bbport: share the complete mip layout between allocation and both copies.
+            // Keep the 17 MiB floor so this remains a dedicated, tick-synchronized buffer
+            // rather than a staging ring slice that another user could reuse too early.
+            auto layout = BuildBufferCopyLayout(
+                vk::Extent3D{src->info.size.width, src->info.size.height, src->info.size.depth},
+                std::min(src->info.resources.levels, dst->info.resources.levels),
+                std::min(src->info.resources.layers, dst->info.resources.layers),
+                src->aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
+                src->info.pixel_format, dst->info.pixel_format);
+            const u64 copy_buffer_size =
+                Common::AlignUp(std::max<u64>(layout.size, 17_MB), u64{256});
             const auto copy_ref =
                 staging_pool.Request(copy_buffer_size, VideoCore::MemoryType::DeviceLocal);
-            CopyImageWithBuffer(src, dst, copy_ref.buffer, copy_ref.offset);
+            for (auto& copy : layout.regions) {
+                copy.bufferOffset += copy_ref.offset;
+            }
+            CopyImageWithBuffer(src, dst, copy_ref.buffer, copy_ref.offset,
+                                layout.regions, layout.size);
         }
     } else if (src->info.num_samples == 1 && dst->info.num_samples > 1 &&
                dst->info.props.is_depth) {
