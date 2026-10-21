@@ -1879,7 +1879,11 @@ std::pair<vk::DeviceMemory, u64> BufferCache::AllocateArenaBlocks(u64 blocks) {
         -> std::optional<std::pair<vk::DeviceMemory, u64>> {
         // exact: only the requested size when there is no room for a whole 64 MiB chunk.
         const u64 chunk_blocks = exact ? blocks : std::max<u64>(ARENA_CHUNK_SIZE >> block_shift, blocks);
+        const vk::MemoryAllocateFlagsInfo alloc_flags = {
+            .flags = vk::MemoryAllocateFlagBits::eDeviceAddress,
+        };
         const vk::MemoryAllocateInfo alloc_info = {
+            .pNext = &alloc_flags,
             .allocationSize = chunk_blocks << block_shift,
             .memoryTypeIndex = memory_type,
         };

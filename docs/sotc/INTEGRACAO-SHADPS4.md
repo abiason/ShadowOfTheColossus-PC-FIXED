@@ -295,3 +295,24 @@ Vulkan registrada. Usou 5376 MiB, fullscreen, patch fps60, vblank emulado
 GPU desta branch. Não houve marcadores st_gameflow no log. O usuário autorizou
 prosseguir após o encerramento; não forneceu avaliação visual e de áudio
 explícita desse teste. A validação objetiva não comprova cobertura específica do padrão.
+
+## Alocação sparse com endereço de dispositivo: 1ac65aa7
+
+Branch `integracao-shadps4-sparse-bda`. A revisão paralela identificou que
+ArenaUsageFlags inclui eShaderDeviceAddress, mas o crescimento dos chunks
+em AllocateArenaBlocks não incluía MemoryAllocateFlagsInfo(eDeviceAddress).
+A adaptação adiciona essa flag via pNext sem substituir o alocador local,
+o dimensionamento dos chunks, os tipos de memória ou os fallbacks existentes.
+Os buffers e a habilitação do recurso BDA no dispositivo já existem.
+
+Não altera shaders ou versões de cache. Logs em
+`out/validacao-shadps4-sparse-bda/`. Compilação incremental passou.
+O teste controlado autorizado completou 600 segundos pelo watchdog (saída
+142), com 119 amostras de FPS até 597 segundos, sem falha fatal ou perda
+do dispositivo Vulkan registrada. Usou fullscreen, PS4 Pro, 5376 MiB,
+patch fps60, vblank emulado a 60 Hz, cache separado e loader de diagnóstico
+preservado com a biblioteca GPU desta branch. Não houve marcadores
+st_gameflow no log. O usuário autorizou prosseguir sem fornecer avaliação
+visual e de áudio explícita desse teste.
+Um teste geral pode não cobrir crescimento, pressão de memória e todos os
+fallbacks; verificação com camada de validação Vulkan é desejável quando disponível.

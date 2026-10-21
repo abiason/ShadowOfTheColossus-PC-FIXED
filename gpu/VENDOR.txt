@@ -33,5 +33,8 @@ Vulkan copy backport:
   Keep the local depth-format mismatch fallback with the same minimum-layer copy rule.
   b3d46e96f Copy every common mip level through the intermediate buffer (#5368),
   adapted with a shared 64-bit layout for allocation and command regions.
+Sparse memory backport:
+  1ac65aa7 Allocate sparse arena memory with device-address support (#5233),
+  adapted to the local chunk allocator.
 Rasterizer backport:
   14ada48a1 Apply pending fast clears before skipping FMASK decompression (#5283).
