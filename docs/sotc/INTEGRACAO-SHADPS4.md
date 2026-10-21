@@ -213,3 +213,24 @@ O teste do jogo não garante cobertura de todos os casos multi-mip na GPU;
 o teste local de layout complementa a verificação, sem substituir validação
 Vulkan específica. Não há conclusão de ganho de desempenho.
 Logs: `out/validacao-shadps4-copy-mips/`.
+
+## IMAGE_GATHER4_C_L: 3a9f5726 (em preparação)
+
+Branch `integracao-shadps4-gather4-cl`, baseada na main com orçamento PS4 Pro
+5376 MiB, sem FMASK/CLAMP/LDS. Adiciona a instrução IMAGE_GATHER4_C_L ao
+dispatch já existente de IMAGE_GATHER, conforme patch upstream de uma linha.
+O caminho compartilhado interpreta os modificadores de comparação e LOD;
+esta alteração não introduz um tradutor separado.
+
+A geração local de shaders avança de 36 para 38 para não compartilhar a
+geração 37 do experimento CLAMP ainda não integrado. O próximo teste deve
+usar cache separado e 5376 MiB. Logs: `out/validacao-shadps4-gather4-cl/`.
+Teste controlado ainda não iniciado; teste geral de partida não demonstra
+uso dessa instrução específica nem cobertura de todos os shaders.
+
+O teste autorizado posterior completou 600 segundos pelo watchdog (saída
+142), com 119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo
+Vulkan registrada. Usou demonstração sem interação, 5376 MiB, fullscreen,
+patch fps60 e cache separado; loader de diagnóstico preservado e biblioteca
+GPU desta branch. O log não contém marcadores st_gameflow. Usuário confirmou
+demonstração, imagem, sombras e áudio normais; não comprova cobertura da instrução específica.
