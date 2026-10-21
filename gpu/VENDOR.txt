@@ -17,6 +17,8 @@ Backported from upstream after b4e7ae7 (2026-10-02), recompiler correctness fixe
   78bedfac4 Preserve CFG fallthrough edges (#5365); local shader binary generation 34.
   5ae2caf31 Fix atomic image texel pointer coordinates for 1D images (#5203);
   local shader binary generation 35 (without the suspended LDS experiment).
+  c34ca21f1 Preserve EXEC scope after an empty branch (#5220);
+  local shader binary generation 36.
 Texture cache backport:
   699009c94 Avoid stale source copies during ExpandImage (#5444), using the local
   SafeToDownload predicate equivalent to upstream HasGpuValidData.
