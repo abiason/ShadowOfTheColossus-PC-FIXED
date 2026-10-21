@@ -178,5 +178,5 @@ cobertura do caso de contagens distintas ou de todos os formatos de profundidade
 
 Execução de 600 segundos concluída pelo watchdog (saída 142), com 119 amostras
 até 597 segundos, sem falha fatal ou perda do dispositivo Vulkan registrada.
-Confirmação visual e de áudio do usuário ainda pendente. O resultado não
+Usuário confirmou imagem e áudio normais durante o teste. O resultado não
 comprova ganho de desempenho nem cobertura específica das contagens distintas.
