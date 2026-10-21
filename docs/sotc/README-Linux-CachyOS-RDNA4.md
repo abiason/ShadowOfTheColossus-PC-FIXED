@@ -81,6 +81,7 @@ O script aplica somente ao processo iniciado:
 
 ```text
 SOTC_NEO=1
+BB_DMEM_MB=5376
 BB_FPS_LIMIT=60
 BB_VBLANK_HZ=60
 SOTC_EOP_DEFER=0
@@ -109,8 +110,24 @@ bash tools/sotc_linux_pro.sh \
 ```
 
 Acrescente `--dry-run` antes dos caminhos para conferir o comando sem abrir o jogo.
-O script fixa os parâmetros acima; as demais variáveis e configurações existentes
+O script fixa os parâmetros acima, exceto `BB_DMEM_MB`, que pode ser sobrescrito
+no ambiente; as demais variáveis e configurações existentes
 continuam sendo herdadas. Não altera os padrões globais do projeto.
+
+O orçamento de memória direta de 5376 MiB acompanha o modo PS4 Pro: o jogo o
+reconheceu como Neo com zero de memória de depuração. Em um teste controlado
+de demonstração sem interação, 5056 MiB apresentou falha em `0x1a371` após
+cerca de 116 segundos, com bitmap sem bits ativos; 5376 MiB completou dez
+minutos e as duas transições de partida, sem falha fatal registrada. O teste
+usou fullscreen, patch experimental fps60 e diagnóstico adicional. Esse
+resultado favorece o orçamento maior, mas não demonstra ausência de vazamentos
+nem resolução definitiva da falha intermitente. O padrão genérico/base PS4
+do runtime continua em 5056 MiB. Exemplo de override para comparação:
+
+```bash
+BB_DMEM_MB=5056 bash tools/sotc_linux_pro.sh --dry-run \
+  /caminho/para/boot-linked.bin /caminho/para/CUSA08809 /caminho/para/content.bin
+```
 
 #### Comparativo da espera EOP
 
