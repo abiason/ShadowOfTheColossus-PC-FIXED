@@ -262,3 +262,35 @@ demonstração, imagem, sombras e áudio normais; não comprova cobertura da ins
 Após a confirmação dos dois testes isolados, a branch gather foi atualizada
 com a main contendo FMASK; a combinação compilou, mas não houve novo teste
 controlado da combinação nesta etapa. CLAMP e LDS continuam excluídos.
+
+## Padrão adicional de descritor de buffer: 8bafaa5a (em preparação)
+
+Branch `integracao-shadps4-buffer-sharp-pattern`. Reconhece o padrão que
+limpa stride do descritor e desloca seu número de registros, preservando a
+transformação como pós-operação do fetch. Patch upstream aplicado nos quatro
+arquivos de descoberta, dados e aplicação do descritor. O operando imediato
+de S_LSHL_B32 é mascarado a 5 bits na tradução existente.
+
+BufferResource é parte dos metadados persistidos como estrutura binária;
+o novo campo e a nova enumeração exigem invalidar o cache. Geração binária
+avança de 38 para 39 e geração de metadados de 22 para 23.
+
+Compilação incremental passou. Teste local de GetSharp passou: descritores
+imediatos e carregados do flat buffer, preservação de endereço e flags,
+ausência de alteração da fonte, shift zero e recurso inválido. Comando:
+
+```sh
+c++ -std=c++23 -O2 -Igpu/shim -Igpu/shadps4 tests/test_buffer_sharp_postop.cpp -o out/validacao-shadps4-buffer-sharp/test-buffer-sharp-postop
+out/validacao-shadps4-buffer-sharp/test-buffer-sharp-postop
+```
+
+O teste não valida sozinho o reconhecimento do padrão na IR nem cobertura
+de shaders do jogo. Teste controlado pendente, com cache separado e 5376 MiB.
+Logs: `out/validacao-shadps4-buffer-sharp/`. FSR preservado.
+
+O teste controlado autorizado completou 600 segundos pelo watchdog (saída
+142), com 119 amostras até 597 segundos, sem falha fatal ou perda do dispositivo
+Vulkan registrada. Usou 5376 MiB, fullscreen, patch fps60, vblank emulado
+60 Hz e cache separado, com loader de diagnóstico preservado e a biblioteca
+GPU desta branch. Não houve marcadores st_gameflow no log. Confirmação
+visual e de áudio pendente; não comprova cobertura específica do padrão.
