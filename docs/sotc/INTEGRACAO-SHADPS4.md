@@ -92,3 +92,24 @@ saída 142. Usuário confirmou texturas, imagem e áudio normais durante o teste
 Hashes dos arquivos com alterações locais no FSR permaneceram iguais.
 Logs e resumo: `out/validacao-shadps4-texture-expand/`.
 O teste é de estabilidade e compatibilidade; não comprova ganho de FPS.
+
+## Preservação de sub-recursos: d3ff0e0c
+
+Branch `integracao-shadps4-texture-subresources`. Na resolução de sobreposição,
+quando a imagem existente é um sub-recurso da solicitada e a imagem maior
+ainda não existe, ela é criada, registrada, atualizada e rastreada antes da
+cópia do mip/slice existente. Depois da cópia, a imagem antiga é liberada.
+Isso preserva conteúdo da GPU que a criação posterior a partir da memória
+do jogo poderia perder. O caminho de render targets não foi alterado.
+
+Adaptação do commit `d3ff0e0c` com o alocador local `slot_images.insert` e
+`CheckImageSetOwner()`. A correção anterior de expansão permanece presente;
+a alteração LDS continua excluída. Não há mudança de geração de shaders.
+Compilação e teste em jogo registrados em
+`out/validacao-shadps4-texture-subresources/`.
+Compilação incremental e diff check passaram. Teste de 600 segundos em
+fullscreen com patch fps60, limite de 60 FPS e vblank emulado de 60 Hz:
+119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo Vulkan
+registrada. Encerramento pelo watchdog, saída 142. Usuário confirmou texturas,
+sombras, efeitos e áudio normais. Arquivos locais modificados do FSR preservados.
+Rotas não controladas; sem conclusão de ganho de desempenho.

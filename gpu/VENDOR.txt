@@ -18,3 +18,5 @@ Backported from upstream after b4e7ae7 (2026-10-02), recompiler correctness fixe
 Texture cache backport:
   699009c94 Avoid stale source copies during ExpandImage (#5444), using the local
   SafeToDownload predicate equivalent to upstream HasGpuValidData.
+  d3ff0e0cc Preserve subresource data when first creating its parent image (#5433),
+  adapted to the local slot allocator and command-processor ownership check.
