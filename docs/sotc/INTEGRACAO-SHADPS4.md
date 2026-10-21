@@ -292,5 +292,6 @@ O teste controlado autorizado completou 600 segundos pelo watchdog (saída
 142), com 119 amostras até 597 segundos, sem falha fatal ou perda do dispositivo
 Vulkan registrada. Usou 5376 MiB, fullscreen, patch fps60, vblank emulado
 60 Hz e cache separado, com loader de diagnóstico preservado e a biblioteca
-GPU desta branch. Não houve marcadores st_gameflow no log. Confirmação
-visual e de áudio pendente; não comprova cobertura específica do padrão.
+GPU desta branch. Não houve marcadores st_gameflow no log. O usuário autorizou
+prosseguir após o encerramento; não forneceu avaliação visual e de áudio
+explícita desse teste. A validação objetiva não comprova cobertura específica do padrão.
