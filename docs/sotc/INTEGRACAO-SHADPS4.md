@@ -234,6 +234,6 @@ Ausência de falha não comprova cobertura específica de todas as passagens FMA
 O teste autorizado completou 600 segundos pelo watchdog (saída 142), com
 119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo Vulkan
 registrada. O log confirma Neo, 5376 MiB e zero memória de depuração, mas não
-registra marcadores st_gameflow; confirmação visual da demonstração e do
-áudio ainda pendente. Não há conclusão de ganho de desempenho ou resolução
+registra marcadores st_gameflow; usuário confirmou demonstração, imagem,
+cores, sombras e áudio normais. Não há conclusão de ganho de desempenho ou resolução
 definitiva da falha intermitente.
