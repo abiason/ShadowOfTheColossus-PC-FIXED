@@ -180,3 +180,36 @@ Execução de 600 segundos concluída pelo watchdog (saída 142), com 119 amostr
 até 597 segundos, sem falha fatal ou perda do dispositivo Vulkan registrada.
 Usuário confirmou imagem e áudio normais durante o teste. O resultado não
 comprova ganho de desempenho nem cobertura específica das contagens distintas.
+
+## Cópia de múltiplos mipmaps: b3d46e96
+
+Branch `integracao-shadps4-copy-mips`, baseada na main sem CLAMP/LDS.
+A adaptação cria uma única lista de regiões e calcula o tamanho em 64 bits,
+usando todos os níveis e camadas comuns. Os offsets relativos são alinhados
+a 16 bytes e somados ao offset real da alocação. O tamanho reservado cobre
+o maior dos dois formatos em cada nível; cópia e alocação usam o mesmo layout.
+O runtime verifica que o intervalo cabe no buffer antes de emitir comandos.
+
+Mantidos as barreiras de transferência, o piso de 17 MiB, o alinhamento da
+alocação a 256 bytes e o caminho intermediário RDNA4 para formatos de
+profundidade diferentes. Esse caminho agora também atende múltiplos mips.
+Não altera shaders e mantém sua geração em 36.
+
+Compilação incremental de bbgpu passou. Teste local de layout passou com
+nível único, dimensões ímpares, camadas, offset de alocação não zero, D32/D32S8
+nos dois sentidos, blocos BC1, volumes 3D e cálculo acima de 4 GiB:
+
+```sh
+c++ -std=c++20 -Igpu/shadps4 tests/test_buffer_copy_layout.cpp -o out/validacao-shadps4-copy-mips/test-buffer-copy-layout
+out/validacao-shadps4-copy-mips/test-buffer-copy-layout
+```
+
+Esses testes verificam layout e dimensionamento, sem emitir comandos Vulkan.
+Teste controlado de 600 segundos concluído em fullscreen, patch fps60, limite
+de 60 FPS e vblank emulado de 60 Hz: 119 amostras até 596 segundos, sem falha
+fatal ou perda do dispositivo Vulkan registrada. Encerramento pelo watchdog,
+saída 142. Usuário confirmou imagem e áudio normais. FSR preservado.
+O teste do jogo não garante cobertura de todos os casos multi-mip na GPU;
+o teste local de layout complementa a verificação, sem substituir validação
+Vulkan específica. Não há conclusão de ganho de desempenho.
+Logs: `out/validacao-shadps4-copy-mips/`.
