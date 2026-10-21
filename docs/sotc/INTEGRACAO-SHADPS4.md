@@ -237,3 +237,28 @@ registrada. O log confirma Neo, 5376 MiB e zero memória de depuração, mas nã
 registra marcadores st_gameflow; usuário confirmou demonstração, imagem,
 cores, sombras e áudio normais. Não há conclusão de ganho de desempenho ou resolução
 definitiva da falha intermitente.
+
+## IMAGE_GATHER4_C_L: 3a9f5726
+
+Branch `integracao-shadps4-gather4-cl`, baseada na main com orçamento PS4 Pro
+5376 MiB. O teste isolado não incluiu FMASK/CLAMP/LDS. Adiciona a instrução IMAGE_GATHER4_C_L ao
+dispatch já existente de IMAGE_GATHER, conforme patch upstream de uma linha.
+O caminho compartilhado interpreta os modificadores de comparação e LOD;
+esta alteração não introduz um tradutor separado.
+
+A geração local de shaders avança de 36 para 38 para não compartilhar a
+geração 37 do experimento CLAMP ainda não integrado. O teste usou
+cache separado e 5376 MiB. Logs: `out/validacao-shadps4-gather4-cl/`.
+O teste geral de partida não demonstra uso dessa instrução específica
+nem cobertura de todos os shaders.
+
+O teste autorizado posterior completou 600 segundos pelo watchdog (saída
+142), com 119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo
+Vulkan registrada. Usou demonstração sem interação, 5376 MiB, fullscreen,
+patch fps60 e cache separado; loader de diagnóstico preservado e biblioteca
+GPU desta branch. O log não contém marcadores st_gameflow. Usuário confirmou
+demonstração, imagem, sombras e áudio normais; não comprova cobertura da instrução específica.
+
+Após a confirmação dos dois testes isolados, a branch gather foi atualizada
+com a main contendo FMASK; a combinação compilou, mas não houve novo teste
+controlado da combinação nesta etapa. CLAMP e LDS continuam excluídos.
