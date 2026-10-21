@@ -735,6 +735,27 @@ static void fault(int sig, siginfo_t *info, void *context) {
     else
         snprintf(line, sizeof(line), "Fault (signal %d) at RIP %p, address %p\n", sig, (void *)rip, info->si_addr);
     { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+    /* Fatal faults only: use saved registers without dereferencing guest pointers. */
+    snprintf(line, sizeof(line),
+             "  tid=%ld si_code=%d RIP=%#llx RSP=%#llx RBP=%#llx ERR=%#llx TRAP=%lld\n",
+             (long)gettid(), info->si_code,
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RIP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RSP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_RBP],
+             (unsigned long long)uc->uc_mcontext.gregs[REG_ERR],
+             (long long)uc->uc_mcontext.gregs[REG_TRAPNO]);
+    { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
+    static const int fault_regs[] = {REG_RAX, REG_RBX, REG_RCX, REG_RDX, REG_RSI, REG_RDI,
+                                     REG_R8, REG_R9, REG_R10, REG_R11, REG_R12, REG_R13,
+                                     REG_R14, REG_R15};
+    static const char *const fault_reg_names[] = {"RAX", "RBX", "RCX", "RDX", "RSI", "RDI",
+                                                 "R8", "R9", "R10", "R11", "R12", "R13",
+                                                 "R14", "R15"};
+    for (size_t i = 0; i < sizeof(fault_regs) / sizeof(fault_regs[0]); ++i) {
+        snprintf(line, sizeof(line), "  %s=%#llx\n", fault_reg_names[i],
+                 (unsigned long long)uc->uc_mcontext.gregs[fault_regs[i]]);
+        ssize_t written_=write(2, line, strlen(line)); (void)written_;
+    }
     if (gpu_enabled) bbgpu_dump_guest_writes(context);
     /* Host call chain (frames with unwind info; guest frames end it). */
     void *frames[32];
