@@ -611,8 +611,15 @@ ImageId TextureCache::ExpandImage(const ImageInfo& info, ImageId image_id) {
     auto& src_image = slot_images[image_id];
     auto& new_image = slot_images[new_image_id];
 
+    // bbport: upstream 699009c9. A CPU-dirty source is stale and must not overwrite
+    // the fresh guest-memory upload. SafeToDownload has the upstream HasGpuValidData predicate.
+    const bool src_has_gpu_data = src_image.SafeToDownload();
     RefreshImage(new_image);
-    runtime.CopyImage(&src_image, &new_image);
+    if (src_has_gpu_data) {
+        runtime.CopyImage(&src_image, &new_image);
+        new_image.ClearFlags(ImageFlagBits::Dirty);
+        new_image.SetFlags(ImageFlagBits::GpuModified);
+    }
 
     if (src_image.binding.is_bound || src_image.binding.is_target) {
         src_image.binding.needs_rebind = 1u;

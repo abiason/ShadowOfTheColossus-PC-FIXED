@@ -49,3 +49,46 @@ LDS exigem análise das adaptações locais antes de serem incorporadas.
 Em particular, `08225c2b` não pode ser aplicado diretamente ao passe LDS local,
 que contém tratamento próprio de ReadLane e sincronização entre subgrupos.
 Nenhuma dessas mudanças amplas foi incorporada neste grupo.
+
+## Experimento LDS suspenso
+
+A adaptação de `08225c2b` apresentou `Guest fault (signal 11)` em `0x1a371`,
+endereço nulo, após a amostra de 115 segundos (saída 139). Imagem e áudio
+estavam normais. O controle sem essa adaptação completou 600 segundos,
+até a amostra de 597 segundos, sem falha fatal registrada e encerrou pelo
+watchdog (saída 142). Isso não identifica definitivamente a causa, pois esse
+endereço de falha já apareceu anteriormente. A adaptação foi retirada das
+fontes e arquivada em `out/validacao-shadps4-lds-singleton/candidate.patch`.
+
+## Patch experimental fps60 e fullscreen
+
+Com a biblioteca da main, sem a adaptação LDS, o patch fps60 foi aplicado
+em memória (uma escrita de três bytes), com limite de host de 60 FPS,
+PS4 Pro, fullscreen, EOP defer 0, DMA 0 e culling de índices/sombras desativado.
+Foram realizadas execuções com vblank emulado em 120 e 60 Hz, ambas por
+600 segundos, com 119 amostras e encerramento pelo watchdog, sem falha fatal
+registrada. O usuário confirmou imagem, áudio e movimentação normais nas duas.
+O teste em 60 Hz reutilizou o cache aquecido pelo teste em 120 Hz; as rotas
+não foram controladas, portanto não há conclusão causal sobre desempenho.
+Logs e resumos: `out/validacao-fps60-fullscreen/`.
+A configuração dos próximos testes usa 60 Hz emulados, sem mudar o padrão
+versionado do launcher.
+
+## Expansão de texturas: 699009c9 (em validação)
+
+Branch `integracao-shadps4-texture-expand`. A cópia da imagem antiga só ocorre
+se ela contiver dados válidos modificados pela GPU, sem flags Dirty. A condição
+local `SafeToDownload()` é equivalente a `HasGpuValidData()` do upstream.
+Quando a cópia ocorre, o destino herda GpuModified e tem Dirty removido.
+Nos outros casos, a atualização da memória do jogo não é sobrescrita.
+A ordem local de liberação e rastreamento foi preservada. A mudança não
+altera shaders e mantém sua geração em 34.
+
+Validação: compilação incremental de bbgpu passou; diff sem erros de
+formatação. Teste de 600 segundos em fullscreen, com patch fps60, limite de
+60 FPS e vblank emulado de 60 Hz; 119 amostras até 596 segundos, sem falha
+fatal ou perda do dispositivo Vulkan registrada. Encerramento pelo watchdog,
+saída 142. Usuário confirmou texturas, imagem e áudio normais durante o teste.
+Hashes dos arquivos com alterações locais no FSR permaneceram iguais.
+Logs e resumo: `out/validacao-shadps4-texture-expand/`.
+O teste é de estabilidade e compatibilidade; não comprova ganho de FPS.
