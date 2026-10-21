@@ -107,3 +107,74 @@ cache e diagnóstico, registrar os instantes das ações e preservar cada log.
 Separar demonstração sem interação de carregamento e jogo manual em testes
 distintos. Esses testes ainda não foram iniciados ou autorizados nesta etapa.
 Não alterar simultaneamente cache, vblank, patch fps60 ou instrumentação.
+
+## Captura na demonstração automática sem interação
+
+O teste autorizado desse protocolo falhou após a amostra de 115 segundos,
+imediatamente após a segunda mensagem st_gameflow (00:01:56.20), saída 139.
+Snapshot sem GDB, BB_WRITE_LOG=0, mesma main com diagnósticos e sem candidatos
+CLAMP/LDS/FMASK. Leitura completa do objeto e stack; tabela de 1.264 palavras
+(10.112 bytes) lida integralmente, sem erro e sem atingir o limite de captura.
+Todas as palavras e bits lidos estavam zerados.
+
+Objeto R14=0x1000000140: +0x50=0x1000213278 (tabela), +0x58=0x4f0
+(1.264 palavras), +0x60=0x13bf0 (80.880), +0x68=0x13c00 (80.896).
+A capacidade é consistente com 1.264 palavras de 64 bits. A busca não encontra
+bits ativos, mantém R12=-1 e calcula endereço não canônico no acesso seguinte.
+Isto explica o mecanismo do acesso inválido, mas não por que a tabela ficou
+zerada. Snapshot concorrente não constitui histórico nem prova de corrupção;
+esgotamento e problemas de atualização/liberação ainda precisam ser investigados.
+
+Log, resumo e análise estruturada em
+`out/investigacao-fault-1a371/reproducao-demo/`. Nenhuma correção causal ou
+patch para ignorar a sentinela foi aplicado.
+
+## Hipótese de orçamento e consultas de memória
+
+O tamanho da tabela corresponde exatamente ao pool padrão do runtime:
+5.056 MiB / 64 KiB = 80.896 bits, igual ao campo +0x68. O limite +0x60
+exclui 16 páginas. A captura e o runtime sustentam essa associação, mas não
+provam esgotamento: o estado dos mapeamentos e a atualização dos bits também
+precisam ser examinados.
+
+O helper do jogo em 0x1abf0 foi identificado por chamada e relocação: usa o
+stub 0xf8f5c0, slot 0x16000d0, import rVjRvHJ0X6c, sceKernelVirtualQuery.
+Ele consulta uma estrutura de 0x48 bytes e testa a flag committed (0x10),
+depois atualiza o bitmap. A classificação de mapeamentos pode, portanto,
+participar do problema; não se deve atribuir tudo à GPU ou à falta de orçamento.
+
+Comparação proposta, ainda não executada: mesma demonstração sem interação,
+mesma biblioteca/cache/diagnóstico e BB_WRITE_LOG=0, alterando somente
+BB_DMEM_MB de 5056 para 6080 (mais 1 GiB). O parâmetro já existe e aceita
+5056..16384 MiB; nenhum padrão será alterado. Se passar, isso pode indicar
+mais margem, adiar o problema ou mudar temporização; não constitui correção
+de vazamento ou erro de mapeamento. Artefato de análise em
+`out/investigacao-fault-1a371/reproducao-demo/memoria-orcamento.md`.
+
+O teste autorizado com 6080 MiB completou 600 segundos, saída 142 pelo
+watchdog, sem falhas fatais registradas. Entretanto, não houve mensagens
+st_gameflow() starting game: o log não demonstra cobertura da mesma transição
+que falhou com 5056 MiB. A ausência de falha não confirma a hipótese de orçamento.
+O jogo registrou Neo com 704 MiB de memória de depuração (6080 - 704 = 5376).
+Isso sugere um limite não-debug de 5376 MiB para Neo; ainda é necessário
+verificar esse caminho e o estado visual alcançado antes de alterar defaults.
+Log e resumo: `out/investigacao-fault-1a371/demo-dmem-6080/`.
+O usuário confirmou que a demonstração estava rodando nesse teste. Portanto,
+a ausência dos marcadores st_gameflow não significa que o jogo tenha ficado
+no menu. O resultado favorece investigar orçamento de memória, mas ainda
+não comprova execução do mesmo caminho interno nem corrige eventual vazamento.
+
+O teste seguinte com 5376 MiB completou 600 segundos pelo watchdog (saída
+142), com 119 amostras até 596 segundos, sem falha fatal ou perda do dispositivo
+Vulkan registrada. O jogo informou Neo, 5376 MiB totais e zero de memória de
+depuração. As duas mensagens st_gameflow ocorreram (50.1868s e 00:01:58.72),
+portanto essa execução cobriu os mesmos marcadores de transição que antecederam
+a falha com 5056 MiB. Log e resumo em
+`out/investigacao-fault-1a371/demo-dmem-5376/`.
+
+O conjunto sustenta a hipótese de orçamento incoerente ao anunciar Neo com
+o padrão de 5056 MiB do runtime: 5376 MiB é o limite não-debug sugerido pelo
+próprio jogo. Ainda não prova ausência de vazamento nem identifica qual operação
+esvaziou o bitmap. Recomendação: usar explicitamente 5376 MiB no launcher
+dedicado PS4 Pro, mantendo o padrão genérico/base PS4 separado e documentando
+a evidência e a limitação. Nenhum default foi alterado nesses testes.
