@@ -159,3 +159,49 @@ KHR (`e0cd957a`), tipo do resultado de cube-face (`4cbd23ef`) e instruções
 V_MIN_F64/V_TRUNC_F64 (`282f6445`, `53af37af`) já têm implementação local
 correspondente e não foram reaplicadas. Isso não significa equivalência
 integral entre o recompilador local e a versão upstream.
+
+## Operações CLAMP e RSQ_LEGACY: 1c2b8f97 (em validação)
+
+Branch `integracao-shadps4-float-clamp`. Patch upstream aplicado sem mudanças
+funcionais. V_LOG_CLAMP_F32, V_RCP_CLAMP_F32 e V_RSQ_CLAMP_F32 passam a usar
+traduções próprias com limites finitos de float, em vez de reutilizar as
+versões sem clamp. V_RSQ_LEGACY_F32 também passa a ter tradução própria,
+retornando zero para entrada zero e limitando a faixa do resultado.
+A geração de shaders avança de 36 para 37; teste com cache separado.
+O experimento LDS segue excluído e a política de matemática rápida não muda.
+
+Logs em `out/validacao-shadps4-float-clamp/`. Validação em jogo pendente;
+observar iluminação, água, sombras e efeitos. Um teste geral de partida não
+garante cobertura das quatro instruções ou de todos os valores especiais.
+
+Primeira execução: encerramento inesperado após a amostra de 116 segundos,
+com saída 139 e `Guest fault (signal 11) at guest offset 0x1a371, address (nil)`.
+Não atingiu o watchdog de 600 segundos. PR e merge suspensos; teste de
+controle da main em `out/validacao-shadps4-float-clamp-controle/`.
+A mesma assinatura já ocorreu no experimento LDS e em uma captura anterior,
+portanto a relação causal com as operações CLAMP permanece indeterminada.
+O controle da main completou 600 segundos, com 119 amostras até 596 segundos,
+sem falha fatal ou perda do dispositivo Vulkan registrada; encerramento pelo
+watchdog, saída 142. A correção CLAMP permanece suspensa, fora da main.
+Um único par de execuções não estabelece causalidade; antes de retomar a
+integração, repetir o candidato e investigar a origem da falha em 0x1a371.
+
+A repetição do candidato CLAMP com cache já aquecido e relatório ampliado de
+registradores completou 600 segundos sem falha fatal ou perda do dispositivo
+Vulkan registrada; última amostra aos 596 segundos, saída 142 pelo watchdog.
+Log: `out/investigacao-fault-1a371/repeticao-clamp/game.log`.
+A falha não foi reproduzida e nenhum registro fatal de registradores foi
+gerado. O handler Linux recebeu diagnóstico de registradores salvos, thread,
+si_code e tipo de exceção, sem dereferenciar ponteiros do jogo.
+Esta repetição difere da primeira pelo cache aquecido e pelo binário do
+loader com diagnóstico; não estabelece que o cache causou a falha nem que
+CLAMP foi absolvido. Integração permanece suspensa até investigação adicional.
+
+A repetição adicional com cache novo e o mesmo loader de diagnóstico também
+completou 600 segundos, com 119 amostras até 597 segundos, sem falhas fatais
+ou perda do dispositivo Vulkan registrada; saída 142 pelo watchdog.
+O usuário informou ausência de erros durante a execução. Log e resumo em
+`out/investigacao-fault-1a371/clamp-cache-novo/`.
+Assim, a falha inicial não foi reproduzida nas duas repetições, uma com cache
+aquecido e outra com cache novo. A causa permanece desconhecida e deve ser
+declarada na revisão; não há evidência suficiente para atribuí-la ao cache.
