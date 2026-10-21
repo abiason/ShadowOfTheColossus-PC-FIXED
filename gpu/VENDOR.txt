@@ -24,3 +24,6 @@ Texture cache backport:
   SafeToDownload predicate equivalent to upstream HasGpuValidData.
   d3ff0e0cc Preserve subresource data when first creating its parent image (#5433),
   adapted to the local slot allocator and command-processor ownership check.
+Vulkan copy backport:
+  afde63182 Allow buffer copies between different image layer counts (#5299).
+  Keep the local depth-format mismatch fallback with the same minimum-layer copy rule.
