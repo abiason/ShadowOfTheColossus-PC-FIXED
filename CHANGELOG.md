@@ -7,6 +7,9 @@
 - FSR de distribuição aceita somente patches versionados verificados.
 - Publicação de pré-release em tags Linux após sucesso do build.
 - CI sem arquivos do jogo: não substitui teste de gameplay/áudio do artefato.
+- Validação posterior do tarball publicado: dez minutos em PS4 Pro/30 FPS,
+  fullscreen; 119 amostras, média 29,21 FPS, mínima 18,7. Imagem, áudio e
+  controles confirmados; parada programada, sem falha fatal e hashes intactos.
 - Detalhes: [notas da distribuição](docs/releases/v0.59.1-linux.3.md).
 
 ## 0.59.1-linux.2 — 2026-10-22 (launcher gráfico Linux)
