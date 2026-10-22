@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.59.1-linux.1 — 2026-10-22 (fork abiason, Linux/CachyOS/RDNA4)
+- Integração seletiva do AjncSystem v0.59.1 e backports shadPS4 de shaders,
+  texturas, cópias Vulkan, memória sparse e filas de comandos.
+- Launcher PS4 Pro Linux com orçamento padrão de 5376 MiB de memória direta.
+- Validação final: dois testes de dez minutos sem falha fatal registrada;
+  imagem, áudio e controles confirmados. Médias das amostras: 29,78 FPS
+  no perfil 30 e 49,96 FPS no perfil 60 experimental, com quedas observadas.
+- Cache binário de shaders 40, metadados 23.
+- Release de código-fonte, sem binários. Alterações locais do submódulo FSR
+  não incluídas; compilação limpa da tag não foi revalidada.
+- Detalhes: [notas da release](docs/releases/v0.59.1-linux.1.md).
+
 ## 0.57-fixed.1 — 2026-10-17 (fork xeodeo, sobre DUDUYG perf/command-processor)
 - AMD RDNA3/RDNA4: barreira entre o clear e o blit da janela (bloco preto no canto inferior
   esquerdo, issue #43).
