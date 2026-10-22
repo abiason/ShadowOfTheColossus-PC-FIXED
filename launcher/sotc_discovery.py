@@ -183,6 +183,8 @@ def library_games(folders, depth=3):
 
 def local_drives():
     """Fixed drive roots (no network, CD or removable media: too slow to walk)."""
+    if os.name != 'nt':
+        return []  # Scan selected libraries and home, never the entire Linux filesystem.
     roots = []
     try:
         mask = ctypes.windll.kernel32.GetLogicalDrives()

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Shadow of the Colossus launcher for Windows (Tkinter), derived from the bbport launcher.
+"""Shadow of the Colossus launcher for Linux and Windows (Tkinter), derived from the bbport launcher.
 
 One window for the port's settings: the game dump, the user's own sound modules, saves, modes
 (16x AF, 60 FPS), display and diagnostics. They go to sotc.py as environment variables.
-Launcher options live in %APPDATA%/sotc-launcher/settings.json.
+Launcher options live in %APPDATA%/sotc-launcher/settings.json on Windows
+or $XDG_CONFIG_HOME/sotc-launcher/settings.json on Linux (default ~/.config).
 
 Frozen with PyInstaller (packaging/windows/package_sotc.sh) the same SotC.exe also runs the
 game without the window (`--play`), sotc.py (`--run`) and the preparation scripts (`--script`),
@@ -17,6 +18,9 @@ from pathlib import Path
 import queue
 import runpy
 import shutil
+import signal
+import shlex
+import locale
 import subprocess
 import sys
 import threading
@@ -26,11 +30,13 @@ FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
 # Path.home() only when APPDATA is missing: it raises without USERPROFILE/HOMEPATH.
-CONFIG_DIR = Path(os.environ.get('APPDATA') or Path.home()) / 'sotc-launcher'
+IS_WINDOWS = os.name == 'nt'
+CONFIG_DIR = (Path(os.environ.get('APPDATA') or Path.home()) if IS_WINDOWS else
+              Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')) / 'sotc-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 GAME_ID, GAME_VERSION = 'CUSA08809', '01.01'
 SYS_MODULES = ('libSceUlt.sprx', 'libSceNgs2.sprx')
-VERSION = '0.57-fixed.1'
+VERSION = '0.57-fixed.1' if IS_WINDOWS else '0.59.1-linux.1+gui-dev'
 MAX_LOG_LINES = 6000
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -40,6 +46,8 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 def attach_stdio():
     """A windowed executable starts without sys.stdout; inherited pipes or a console still exist."""
+    if not IS_WINDOWS:
+        return
     import msvcrt
     for name, std in (('stdout', -11), ('stderr', -12)):
         if getattr(sys, name) is not None:
@@ -99,6 +107,9 @@ def _(pt, en):
 
 
 def windows_language():
+    if not IS_WINDOWS:
+        language = (locale.getlocale()[0] or os.environ.get('LANG', 'en')).lower()
+        return language[:2] if language[:2] in ('pt', 'es') else 'en'
     try:
         primary = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3ff
     except (AttributeError, OSError):
@@ -118,6 +129,11 @@ APP_DEFAULTS = {'ui_language': '', 'game_dir': str(PORT_DIR.parent / GAME_ID), '
                 'fx_fog': True, 'fx_ssao': True, 'engine_cvars': '', 'perf_culling': True,
                 'perf_record_thread': True, 'perf_dma': True, 'gpu_submit': 'auto', 'library_dirs': [], 'keys': {},
                 'auto_setup': True, 'dlc_dir': '', 'pad_style': 'playstation', 'vibration': 100, 'pads': {}, 'glyph_style': 'playstation'}
+if not IS_WINDOWS:
+    APP_DEFAULTS.update(neo=True, perf_dma=False, fullscreen=True, af16=False,
+                        auto_setup=False, prepared_boot='', prepared_content='', prepared_cpu='')
+
+
 # Keyboard bindings (src/runtime_pad.c): PS4 input, its default SDL key name, label.
 KEY_INPUTS = [
     ('move_up', 'W', ('Andar para frente', 'Move forward')), ('move_down', 'S', ('Andar para trás', 'Move back')),
@@ -233,7 +249,11 @@ CONTROLS = [('W A S D', ('analógico esquerdo', 'left stick')), (('setas', 'arro
 
 def load_json(path, default):
     try:
-        return json.loads(Path(path).read_text(encoding='utf-8'))
+        source = Path(path)
+        if not IS_WINDOWS and source == CONFIG_FILE and not source.exists():
+            source = Path.home() / 'sotc-launcher' / 'settings.json'
+        value = json.loads(source.read_text(encoding='utf-8'))
+        return value if isinstance(value, type(default)) else default
     except (OSError, ValueError):
         return default
 
@@ -384,7 +404,18 @@ def game_environment(s):
     if str(s.get('gamepad', '')).strip():
         env['BB_GAMEPAD'] = str(s['gamepad']).strip()
     env['BB_CONFIG'] = str(PORT_DIR / 'sotc.ini')
-    for item in str(s['extra_env']).split():
+    if not IS_WINDOWS:
+        env.update(BB_FPS_LIMIT='60' if s.get('fps60') else '30', BB_VBLANK_HZ='60',
+                   BB_DMEM_MB='5376' if s.get('neo') else '5056', SOTC_EOP_DEFER='0',
+                   SOTC_RB_ASYNC='0', BB_DIRECT_MEMORY_ACCESS='1' if s.get('perf_dma') else '0')
+        for key, variable in (('prepared_boot', 'SOTC_BOOT_IMAGE'),
+                              ('prepared_content', 'SOTC_CONTENT_PROFILE'),
+                              ('prepared_cpu', 'SOTC_CPU_PROFILE')):
+            env.pop(variable, None)
+            if str(s.get(key, '')).strip():
+                env[variable] = str(s[key]).strip()
+    extra = str(s['extra_env'])
+    for item in (extra.split() if IS_WINDOWS else shlex.split(extra)):
         if '=' in item:
             key, value = item.split('=', 1)
             env[key] = value
@@ -605,6 +636,19 @@ class Launcher:
             var.trace_add('write', lambda *_a: on_change())
         return self.row(parent, title, holder, hint)
 
+    def file(self, parent, key, title, hint=None):
+        var = self.var(key)
+        holder = self.ttk.Frame(parent)
+        self.ttk.Entry(holder, textvariable=var, width=54).pack(side='left')
+
+        def browse():
+            chosen = self.filedialog.askopenfilename(title=title,
+                        initialdir=str(Path(var.get()).parent) if var.get() else str(PORT_DIR))
+            if chosen:
+                var.set(chosen)
+        self.ttk.Button(holder, text=_('Procurar…', 'Browse…'), command=browse).pack(side='left', padx=(6, 0))
+        return self.row(parent, title, holder, hint)
+
     def scrolled_page(self, name, title, subtitle):
         tk, ttk = self.tk, self.ttk
         outer = ttk.Frame(self.content)
@@ -634,7 +678,8 @@ class Launcher:
         side.pack_propagate(False)
         tk.Label(side, text='SHADOW OF\nTHE COLOSSUS', bg=BG, fg=GOLD, font=('Georgia', 15), justify='left').pack(
             anchor='w', padx=22, pady=(24, 0))
-        tk.Label(side, text=_('port nativo · Windows', 'native port · Windows') + f'  ·  v{VERSION}', bg=BG, fg=MUTED,
+        tk.Label(side, text=(_('port nativo · Windows', 'native port · Windows') if IS_WINDOWS else
+                              _('port nativo · Linux', 'native port · Linux')) + f'  ·  v{VERSION}', bg=BG, fg=MUTED,
                  font=('Segoe UI', 9)).pack(anchor='w', padx=22, pady=(2, 20))
         self.nav, self.current_page = {}, None
         for name, title in (('play', _('Jogar', 'Play')), ('game', _('Jogo e saves', 'Game & saves')),
@@ -677,19 +722,24 @@ class Launcher:
         self.build_advanced()
         self.build_log()
         self.root.bind_all('<MouseWheel>', self.wheel)
+        if not IS_WINDOWS:
+            self.root.bind_all('<Button-4>', self.wheel)
+            self.root.bind_all('<Button-5>', self.wheel)
         self.refresh_status()
 
     def wheel_over_box(self, event):
         page = self.pages.get(self.current_page)
         if hasattr(page, 'scroll'):
-            page.scroll(int(-event.delta / 120))
+            page.scroll(-1 if getattr(event, 'num', None) == 4 else
+                        1 if getattr(event, 'num', None) == 5 else int(-event.delta / 120))
         return 'break'
 
     def wheel(self, event):
         page = self.pages.get(self.current_page)
         if hasattr(page, 'scroll') and not isinstance(event.widget, (self.tk.Text, self.ttk.Combobox)) \
                 and 'popdown' not in str(event.widget):
-            page.scroll(int(-event.delta / 120))
+            page.scroll(-1 if getattr(event, 'num', None) == 4 else
+                        1 if getattr(event, 'num', None) == 5 else int(-event.delta / 120))
 
     def show(self, name):
         for page in self.pages.values():
@@ -811,6 +861,17 @@ class Launcher:
                     _('O dump CUSA08809 (versão europeia 1.01), com eboot.bin, sce_module e sce_sys.',
                       'The CUSA08809 dump (EU version 1.01) with eboot.bin, sce_module and sce_sys.'),
                     on_change=self.game_changed)
+        if not IS_WINDOWS:
+            self.section(f, _('Imagem já preparada (opcional)', 'Prepared image (optional)'))
+            self.file(f, 'prepared_boot', _('Imagem vinculada', 'Linked image'),
+                      _('boot-linked.bin; deixe ambos os campos vazios para preparar pelo dump.',
+                        'boot-linked.bin; leave both fields empty to prepare from the dump.'))
+            self.file(f, 'prepared_content', _('Perfil de conteúdo', 'Content profile'), 'content.bin')
+            self.file(f, 'prepared_cpu', _('Perfil de CPU (opcional)', 'CPU profile (optional)'), 'sotc-cpu.bin')
+            self.note(f, _('A imagem preparada precisa conter os módulos de áudio do seu console. '
+                          'Estes arquivos são reutilizados sem serem regravados.',
+                          'The prepared image must include your console audio modules. '
+                          'These files are reused without rewriting them.'))
         self.section(f, _('Som', 'Sound'))
         self.folder(f, 'sys_modules', _('Módulos de som', 'Sound modules'),
                     _('Pasta com libSceNgs2.sprx e libSceUlt.sprx', 'Folder with libSceNgs2.sprx and libSceUlt.sprx'),
@@ -852,8 +913,12 @@ class Launcher:
                    _('Chão, grama e rochas ficam nítidos à distância, quase sem custo.',
                      'Ground, grass and rocks stay sharp at a distance, at almost no cost.'))
         self.check(f, 'fps60', _('60 FPS (experimental)', '60 FPS (experimental)'),
-                   _('Tira o limite de 30 FPS do jogo; o vblank vai a 120 Hz. Mediu 38 FPS no campo e ~25 no templo.',
-                     'Removes the game\'s 30 FPS cap; vblank at 120 Hz. Measured 38 FPS in the open world, ~25 at the temple.'))
+                   (_('Remove o limite de 30 FPS; no Linux o vblank emulado permanece em 60 Hz. '
+                       'Não garante 60 FPS constantes.',
+                       'Removes the 30 FPS cap; Linux keeps emulated vblank at 60 Hz. '
+                       'Does not guarantee a steady 60 FPS.') if not IS_WINDOWS else
+                    _('Tira o limite de 30 FPS do jogo; o vblank vai a 120 Hz. Mediu 38 FPS no campo e ~25 no templo.',
+                      'Removes the game\'s 30 FPS cap; vblank at 120 Hz. Measured 38 FPS in the open world, ~25 at the temple.')))
         self.section(f, _('Resolução', 'Resolution'))
         self.row(f, _('Saída', 'Output'), self.choice(f, 'output_res', OUTPUTS),
                  _('O jogo renderiza em 1080p, como no PS4; a imagem é ampliada ou reduzida para a saída. '
@@ -1124,6 +1189,9 @@ class Launcher:
         self.row(f, _('Variáveis extras', 'Extra variables'), ttk.Entry(f, textvariable=self.var('extra_env'), width=58),
                  _('Pares NOME=valor separados por espaço (veja o README).',
                    'NAME=value pairs separated by spaces (see the README).'))
+        if not IS_WINDOWS:
+            self.note(f, _('Use aspas em valores com espaços: NOME="valor com espaços".',
+                          'Quote values with spaces: NAME="value with spaces".'))
 
     def build_log(self):
         tk, ttk = self.tk, self.ttk
@@ -1144,7 +1212,7 @@ class Launcher:
     # ---- state -------------------------------------------------------------------------------
     def game_changed(self):
         game = self.var('game_dir').get()
-        if game_info(game) and not self.var('dlc_dir').get():
+        if IS_WINDOWS and game_info(game) and not self.var('dlc_dir').get():
             from sotc_discovery import find_dlc_root
             dlc = find_dlc_root(game)
             if dlc:
@@ -1166,6 +1234,9 @@ class Launcher:
         modules = Path(self.var('sys_modules').get() or '.')
         if self.var('sys_modules').get() and all((modules / m).is_file() for m in SYS_MODULES):
             sound = _('✓ Módulos de som encontrados', '✓ Sound modules found')
+        elif not IS_WINDOWS and self.var('prepared_boot').get():
+            sound = _('• Áudio depende dos módulos incluídos na imagem preparada',
+                      '• Audio depends on modules included in the prepared image')
         else:
             sound = _('⚠ Sem os módulos de som do seu console: o jogo fica mudo (Jogo e saves)',
                       '⚠ No sound modules from your console: the game is silent (Game & saves)')
@@ -1197,11 +1268,12 @@ class Launcher:
         return '   ·   '.join(parts)
 
     def detect_gpu(self):
-        exe = PORT_DIR / 'bin' / 'bb-gpu-capabilities.exe'
+        executable = 'bb-gpu-capabilities.exe' if IS_WINDOWS else 'bb-gpu-capabilities'
+        exe = PORT_DIR / 'bin' / executable
         if not exe.is_file():
-            exe = PORT_DIR / 'out' / 'bb-gpu-capabilities.exe'
+            exe = PORT_DIR / 'out' / executable
         env = dict(os.environ)
-        if not (exe.parent / 'SDL3.dll').is_file():
+        if IS_WINDOWS and not (exe.parent / 'SDL3.dll').is_file():
             clang64 = Path(os.environ.get('MSYS2_ROOT', r'C:\msys64')) / 'clang64' / 'bin'
             env['PATH'] = f'{clang64}{os.pathsep}{env.get("PATH", "")}'
         text = _('• Placa de vídeo: não verificada', '• Graphics card: not checked')
@@ -1276,10 +1348,14 @@ class Launcher:
         self.setup_button = ttk.Button(inner, text=_('Escolher a pasta do jogo…', 'Choose the game folder…'),
                                        style='Play.TButton', command=self.choose_game_for_setup)
         self.setup_button.pack(ipadx=18)
-        tk.Label(inner, text=_('A pasta principal do jogo, como no shadPS4: as subpastas do jogo (CUSA08809), da '
+        tk.Label(inner, text=(_('Escolha o dump e depois confira os módulos de áudio ou a imagem já preparada '
+                               'em Jogo e saves. Os saves não são importados automaticamente.',
+                               'Choose the dump, then check audio modules or your prepared image in Game & saves. '
+                               'Saves are not imported automatically.') if not IS_WINDOWS else
+                             _('A pasta principal do jogo, como no shadPS4: as subpastas do jogo (CUSA08809), da '
                                'atualização (-UPDATE/-patch) e das DLCs são encontradas sozinhas.',
                                "The game's main folder, as in shadPS4: the game (CUSA08809), update (-UPDATE/-patch) "
-                               'and DLC subfolders are found on their own.'),
+                               'and DLC subfolders are found on their own.')),
                  bg=BG, fg=MUTED, font=('Segoe UI', 10), wraplength=self.px(560), justify='center').pack(pady=(10, 0))
         self.setup_hint = tk.Label(inner, text='', bg=BG, fg=MUTED, font=('Segoe UI', 10), cursor='hand2',
                                    wraplength=self.px(640), justify='center')
@@ -1328,6 +1404,15 @@ class Launcher:
 
     def configure_from_game(self, game, chosen=None):
         """Game chosen: DLC from the game folder, saves, sound — in the background."""
+        if not IS_WINDOWS:
+            self.var('game_dir').set(game)
+            self.app['setup_done'] = True
+            self.collect()
+            self.setup_frame.destroy()
+            self.setup_frame = None
+            self.show('game')
+            self.game_changed()
+            return
         self.setup_button.configure(state='disabled')
         self.setup_hint.unbind('<Button-1>')
         self.setup_hint.configure(text=_('Configurando…', 'Setting up…'), fg=MUTED)
@@ -1604,8 +1689,9 @@ class Launcher:
         try:
             self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(self.app),
                                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
-        except OSError as error:
+                                            stderr=subprocess.STDOUT, creationflags=NO_WINDOW,
+                                            start_new_session=not IS_WINDOWS)
+        except (OSError, ValueError) as error:
             self.append(_('Não foi possível iniciar: {}', 'Could not start: {}').format(error) + '\n')
             self.process = None
             return
@@ -1694,7 +1780,13 @@ class Launcher:
         path = Path(path or PORT_DIR)
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
-        os.startfile(str(path))
+        if IS_WINDOWS:
+            os.startfile(str(path))
+        else:
+            try:
+                subprocess.Popen(['xdg-open', str(path)], start_new_session=True)
+            except OSError as error:
+                self.messagebox.showerror('Shadow of the Colossus', str(error))
 
     def clear_cache(self):
         if self.process:
@@ -1707,6 +1799,9 @@ class Launcher:
 
     def shortcut(self):
         self.collect()
+        if not IS_WINDOWS:
+            self.linux_shortcut()
+            return
         game_icon = self.game_icon_file()
         if FROZEN:
             target, arguments, icon = sys.executable, '', game_icon or f'{sys.executable},0'
@@ -1726,6 +1821,32 @@ class Launcher:
         else:
             self.messagebox.showerror('Shadow of the Colossus', result.stderr.decode(errors='replace')[:400])
 
+    def linux_shortcut(self):
+        try:
+            result = subprocess.run(['xdg-user-dir', 'DESKTOP'], capture_output=True,
+                                    text=True, timeout=5, check=True)
+            desktop = Path(result.stdout.strip())
+            if not desktop.is_absolute() or desktop == Path.home():
+                raise OSError(_('Área de trabalho não configurada.', 'Desktop directory not configured.'))
+            # Desktop Exec is not a shell: escape its quoted argument syntax and field codes.
+            def quote(value):
+                value = str(value).replace('%', '%%')
+                for char in ('\\', '"', '`', '$'):
+                    value = value.replace(char, '\\' + char)
+                return '"' + value + '"'
+            command = ' '.join(quote(p) for p in (sys.executable, PORT_DIR / 'launcher' / 'sotc_launcher.py'))
+            entry = ('[Desktop Entry]\nType=Application\nName=Shadow of the Colossus\n'
+                     'Comment=Configurar e executar Shadow of the Colossus\n'
+                     f'Exec={command}\nIcon=applications-games\nTerminal=false\nCategories=Game;\n')
+            desktop.mkdir(parents=True, exist_ok=True)
+            path = desktop / 'Shadow of the Colossus.desktop'
+            path.write_text(entry, encoding='utf-8')
+            path.chmod(0o755)
+            self.messagebox.showinfo('Shadow of the Colossus',
+                                     _('Atalho criado na área de trabalho.', 'Shortcut created on the desktop.'))
+        except (OSError, subprocess.SubprocessError) as error:
+            self.messagebox.showerror('Shadow of the Colossus', str(error))
+
     def close(self):
         try:
             self.collect()
@@ -1735,9 +1856,13 @@ class Launcher:
 
 
 class GameJob:
-    """A Windows job holding sotc.py and the bb-probe.exe it starts (Stop ends both)."""
+    """Own the runner process tree: Windows job or Linux session (Stop ends both)."""
 
     def __init__(self, process):
+        if not IS_WINDOWS:
+            self.handle = None
+            self.group = process.pid
+            return
         kernel32 = ctypes.windll.kernel32
         kernel32.CreateJobObjectW.restype = ctypes.c_void_p
         self.handle = kernel32.CreateJobObjectW(None, None)
@@ -1745,6 +1870,12 @@ class GameJob:
             kernel32.AssignProcessToJobObject(ctypes.c_void_p(self.handle), ctypes.c_void_p(int(process._handle)))
 
     def terminate(self):
+        if not IS_WINDOWS:
+            try:
+                os.killpg(self.group, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            return
         if self.handle:
             ctypes.windll.kernel32.TerminateJobObject(ctypes.c_void_p(self.handle), 1)
 
@@ -1766,7 +1897,8 @@ def play_without_window(settings):
     with open_session_log(log_dir) as log:
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
+                                   stderr=subprocess.STDOUT, creationflags=NO_WINDOW,
+                                            start_new_session=False)
         for raw in iter(process.stdout.readline, b''):
             text = raw.decode('utf-8', errors='replace')
             log.write(text)
