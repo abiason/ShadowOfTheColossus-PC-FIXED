@@ -102,6 +102,61 @@ class LinuxRunnerTests(unittest.TestCase):
         self.assertEqual((prepared / 'prepared.txt').read_text(), 'new-fingerprint\n')
         self.assertEqual(existing.read_bytes(), b'manual image')
 
+    def test_data_root_keeps_prepared_launch_writes_outside_port(self):
+        with tempfile.TemporaryDirectory() as external:
+            data = Path(external) / 'external-data'
+            before = set(self.root.iterdir())
+            self.root.chmod(0o555)
+            try:
+                command, env, calls = self.run_prepared(SOTC_DATA_DIR=str(data))
+            finally:
+                self.root.chmod(0o755)
+            self.assertEqual(set(self.root.iterdir()), before)
+        self.assertEqual(env['BB_CONFIG'], str(data / 'sotc.ini'))
+        self.assertEqual(env['BB_GPU_USER_DIR'], str(data / 'user'))
+        self.assertEqual(command[command.index('--user') + 1], str(data / 'user'))
+        self.assertEqual(calls[0][1][calls[0][1].index('--out') + 1],
+                         data / 'out' / 'launcher-linux')
+        self.assertFalse((self.root / 'out').exists())
+
+    def test_data_root_automatic_preparation_and_stamp(self):
+        data = self.root / 'data'
+        before = set(self.root.iterdir())
+        calls = []
+        def script(name, *args):
+            calls.append((name, args))
+            self.assertTrue(Path(args[args.index('--out') + 1]).is_relative_to(data))
+        with patch.dict(os.environ, {'SOTC_GAME_DIR': str(self.game),
+                                     'SOTC_DATA_DIR': str(data)}, clear=True), \
+             patch.object(runner, 'PORT', self.root), patch.object(runner, 'load_ini'), \
+             patch.object(runner.os, 'chdir'), patch.object(runner, 'run_script', side_effect=script), \
+             patch.object(runner, 'fingerprint', return_value='stamp'), \
+             patch.object(runner, 'find_probe', return_value=self.root / 'bb-probe'), \
+             patch.object(runner.sys, 'argv', ['sotc.py']), \
+             patch.object(runner.subprocess, 'run', return_value=Mock(returncode=0)):
+            self.assertEqual(runner.main(), 0)
+        self.assertEqual(len(calls), 5)
+        self.assertEqual((data / 'out/launcher-linux/prepared/prepared.txt').read_text(), 'stamp\n')
+        self.assertEqual(set(self.root.iterdir()) - before, {data})
+
+    def test_linux_ini_uses_data_root_and_explicit_config(self):
+        data = self.root / 'data'
+        data.mkdir()
+        (data / 'sotc.ini').write_text('RUNNER_TEST_SETTING=data\n')
+        explicit = self.root / 'chosen.ini'
+        explicit.write_text('RUNNER_TEST_SETTING=explicit\n')
+        with patch.object(runner, 'PORT', self.root):
+            with patch.dict(os.environ, {'SOTC_DATA_DIR': str(data)}, clear=True):
+                runner.load_ini()
+                self.assertEqual(os.environ['RUNNER_TEST_SETTING'], 'data')
+            with patch.dict(os.environ, {'SOTC_DATA_DIR': str(data), 'BB_CONFIG': str(explicit)}, clear=True):
+                runner.load_ini()
+                self.assertEqual(os.environ['RUNNER_TEST_SETTING'], 'explicit')
+            with patch.dict(os.environ, {'SOTC_DATA_DIR': str(data)}, clear=True), \
+                 patch.object(runner.os, 'name', 'nt'):
+                self.assertEqual(runner.data_dir(), self.root)
+                self.assertEqual(runner.config_path(), self.root / 'sotc.ini')
+
     def test_mode_tokens_are_unambiguous(self):
         env = {}
         runner.apply_timing_defaults(env, 'notfps60,fps600')

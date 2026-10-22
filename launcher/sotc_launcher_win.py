@@ -197,10 +197,18 @@ except ImportError:
     button_icons = None
 
 
+def data_dir():
+    """Writable state for packaged Linux; source checkouts keep their existing layout."""
+    if not IS_WINDOWS and os.environ.get('SOTC_DATA_DIR'):
+        return Path(os.environ['SOTC_DATA_DIR']).expanduser().resolve()
+    return PORT_DIR
+
+
 def write_key_bindings(keys, pads=None):
     """The launcher's key and gamepad bindings as key.<input>= / pad.<input>= lines of sotc.ini
     (BB_CONFIG), replacing its earlier ones; other lines stay."""
-    ini = PORT_DIR / 'sotc.ini'
+    ini = data_dir() / 'sotc.ini'
+    ini.parent.mkdir(parents=True, exist_ok=True)
     try:
         lines = ini.read_text(encoding='utf-8').splitlines()
     except OSError:
@@ -297,7 +305,7 @@ def game_info(folder):
 def user_dir(s):
     """The data folder (saves in savedata/1/CUSA08809 below it). A folder picked one level too
     deep (savedata itself, or a save folder) is taken back up to the data folder."""
-    folder = Path(s.get('user_dir') or PORT_DIR / 'user')
+    folder = Path(s.get('user_dir') or data_dir() / 'user')
     parts = [p.lower() for p in folder.parts]
     if 'savedata' in parts:
         folder = Path(*folder.parts[:len(parts) - 1 - parts[::-1].index('savedata')])
@@ -403,7 +411,7 @@ def game_environment(s):
     env['SOTC_MOUSE_INVERT'] = '1' if s.get('mouse_invert') else '0'
     if str(s.get('gamepad', '')).strip():
         env['BB_GAMEPAD'] = str(s['gamepad']).strip()
-    env['BB_CONFIG'] = str(PORT_DIR / 'sotc.ini')
+    env['BB_CONFIG'] = str(data_dir() / 'sotc.ini')
     if not IS_WINDOWS:
         env.update(BB_FPS_LIMIT='60' if s.get('fps60') else '30', BB_VBLANK_HZ='60',
                    BB_DMEM_MB='5376' if s.get('neo') else '5056', SOTC_EOP_DEFER='0',
@@ -891,8 +899,10 @@ class Launcher:
                     on_change=self.refresh_status)
         self.section(f, _('Saves', 'Saves'))
         self.folder(f, 'user_dir', _('Pasta de dados', 'Data folder'), _('Pasta dos saves', 'Saves folder'),
-                    _('Saves, cache de shaders e capturas. Vazio = a pasta user ao lado do port.',
-                      'Saves, shader cache and screenshots. Empty = the user folder next to the port.'),
+                    (_('Saves, cache e capturas. Vazio = {}.', 'Saves, cache and screenshots. Empty = {}.').format(
+                        data_dir() / 'user') if not IS_WINDOWS else
+                     _('Saves, cache de shaders e capturas. Vazio = a pasta user ao lado do port.',
+                       'Saves, shader cache and screenshots. Empty = the user folder next to the port.')),
                     on_change=self.refresh_status)
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=(10, 0))
@@ -1834,7 +1844,10 @@ class Launcher:
                 for char in ('\\', '"', '`', '$'):
                     value = value.replace(char, '\\' + char)
                 return '"' + value + '"'
-            command = ' '.join(quote(p) for p in (sys.executable, PORT_DIR / 'launcher' / 'sotc_launcher.py'))
+            arguments = [sys.executable, PORT_DIR / 'launcher' / 'sotc_launcher.py']
+            if os.environ.get('SOTC_DATA_DIR'):
+                arguments = ['/usr/bin/env', f'SOTC_DATA_DIR={data_dir()}', *arguments]
+            command = ' '.join(quote(p) for p in arguments)
             entry = ('[Desktop Entry]\nType=Application\nName=Shadow of the Colossus\n'
                      'Comment=Configurar e executar Shadow of the Colossus\n'
                      f'Exec={command}\nIcon=applications-games\nTerminal=false\nCategories=Game;\n')

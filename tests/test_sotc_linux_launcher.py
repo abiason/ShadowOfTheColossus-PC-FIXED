@@ -133,6 +133,32 @@ class LinuxLauncherTests(unittest.TestCase):
         messages.showinfo.assert_called_once()
         messages.showerror.assert_not_called()
 
+    def test_packaged_data_dir_keeps_controls_and_default_user_outside_install(self):
+        data = self.base / 'dados com espaços'
+        with mock.patch.dict(os.environ, {'SOTC_DATA_DIR': str(data)}):
+            self.launcher.write_key_bindings({'cross': 'Space'}, {'cross': 'a'})
+            config = data / 'sotc.ini'
+            self.assertIn('key.cross=Space', config.read_text())
+            self.assertIn('pad.cross=a', config.read_text())
+            self.assertEqual(self.launcher.user_dir({'user_dir': ''}), data / 'user')
+            self.assertEqual(self.launcher.game_environment(self.settings)['BB_CONFIG'], str(config))
+            with mock.patch.object(self.launcher, 'IS_WINDOWS', True):
+                self.assertEqual(self.launcher.data_dir(), self.launcher.PORT_DIR)
+
+    def test_packaged_desktop_shortcut_preserves_data_location(self):
+        import types
+        desktop = self.base / 'Desktop'
+        data = self.base / 'dados privados'
+        messages = mock.Mock()
+        result = subprocess.CompletedProcess([], 0, str(desktop) + '\n', '')
+        with mock.patch.object(self.launcher.subprocess, 'run', return_value=result), \
+                mock.patch.dict(os.environ, {'SOTC_DATA_DIR': str(data)}):
+            self.launcher.Launcher.linux_shortcut(types.SimpleNamespace(messagebox=messages))
+        text = (desktop / 'Shadow of the Colossus.desktop').read_text()
+        self.assertIn('"/usr/bin/env"', text)
+        self.assertIn('"SOTC_DATA_DIR=' + str(data) + '"', text)
+        messages.showerror.assert_not_called()
+
     def test_stop_terminates_parent_and_child_process_group(self):
         marker = self.base / 'child-terminated'
         child = ("import signal,time,pathlib,sys; "
