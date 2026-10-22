@@ -1,4 +1,4 @@
-# Shadow of the Colossus — PC (port nativo / native port) · v0.59.1-linux.2
+# Shadow of the Colossus — PC (port nativo / native port) · v0.59.1-linux.3
 
 **[Español](#español)** · **[Português](#português)** · **[English](#english)** · [Releases](../../releases) · [Changelog](CHANGELOG.md)
 
@@ -13,17 +13,17 @@
 
 ---
 
-## Linux / CachyOS / AMD RDNA4 — v0.59.1-linux.2
+## Linux / CachyOS / AMD RDNA4 — v0.59.1-linux.3
 
-**[Notas da release / Release notes](docs/releases/v0.59.1-linux.2.md)** ·
-**[Download source release](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.2)**
+**[Notas da release / Release notes](docs/releases/v0.59.1-linux.3.md)** ·
+**[Download Linux distribution](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.3)**
 
 Integração seletiva do AjncSystem v0.59.1 e de correções do shadPS4, preservando
-as adaptações Linux/CachyOS e AMD RDNA4. **Release de código-fonte, sem binários**;
+as adaptações Linux/CachyOS e AMD RDNA4. **Distribuição nativa gerada no GitHub Actions**;
 as instruções de uso do lançador Windows abaixo descrevem a base histórica.
 
 Selective AjncSystem v0.59.1 and shadPS4 backports with the Linux/CachyOS and AMD
-RDNA4 adaptations preserved. **Source-only release; no binary packages.**
+RDNA4 adaptations preserved. **Native distribution built in GitHub Actions.**
 The Windows launcher instructions below describe the inherited project.
 
 - **Ambiente / Hardware:** CachyOS, Ryzen 7 5700X, Radeon RX 9060 XT 16 GB,
@@ -45,14 +45,14 @@ residuais; outras GPUs/distribuições e Windows não foram revalidados neste lo
 The measurements are periodic FPS samples, not frame-time percentiles; coverage
 is limited and Windows was not retested for this batch.
 
-**Build on Linux:** `env BB_PGO=off BB_LTO=OFF bash build.sh`
+**Build on Linux:** [dependências e build isolado / dependencies and isolated build](docs/sotc/README-Linux-CachyOS-RDNA4.md#integração-contínua-e-distribuição).
 
 **Interface gráfica Linux / Linux GUI (experimental):**
 `python3 launcher/sotc_launcher.py` — requer / requires Tk.
 [Configuração e perfis / Setup and profiles](docs/sotc/README-Linux-CachyOS-RDNA4.md#interface-gráfica-linux-experimental).
-Esta release inclui a interface. Jogar/Parar foi validado em 30 e 60 FPS,
+Esta release inclui a interface e o empacotamento automatizado. Jogar/Parar foi validado em 30 e 60 FPS,
 com imagem, áudio e controles confirmados pelo usuário. / This release includes
-the launcher. Play/Stop was tested at 30 and 60 FPS; the user confirmed video,
+the launcher and automated packaging. Play/Stop was tested at 30 and 60 FPS; the user confirmed video,
 audio and controls.
 
 **Guia / Guide:** [Linux / CachyOS / AMD RDNA4](docs/sotc/README-Linux-CachyOS-RDNA4.md) ·
@@ -60,6 +60,16 @@ audio and controls.
 
 Suporte Linux experimental. Dump do jogo e módulos de áudio devem ser fornecidos
 pelo usuário; nenhum arquivo proprietário é distribuído.
+
+
+**Build automatizado / Automated build:**
+[Linux distribution](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/actions/workflows/linux-distribution.yml)
+gera o tarball e `SHA256SUMS` em ambiente isolado; tags Linux publicam uma
+pré-release após o build passar. / Builds the tarball and checksums in an
+isolated environment; Linux tags publish a prerelease after successful checks.
+O CI não possui o jogo: os números acima são dos testes locais anteriores,
+não do artefato gerado pelo Actions. / CI has no game data; the measurements
+above refer to previous local runs, not the Actions-built binary.
 
 ---
 
@@ -82,6 +92,7 @@ propios y de otros forks. Notas completas: [docs/releases/v0.57-fixed.1.md](docs
 
 | Versión | Mejoras y correcciones |
 |---|---|
+| **0.59.1-linux.3** | Distribución nativa Linux automatizada en GitHub Actions, hashes y registro del build; requiere bibliotecas compatibles del sistema. [Notas](docs/releases/v0.59.1-linux.3.md). |
 | **0.59.1-linux.2** | Launcher gráfico Linux reutilizado del SotC: perfiles 30/60 FPS, archivos preparados, configuración XDG y botones Jugar/Parar validados. [Notas](docs/releases/v0.59.1-linux.2.md). |
 | **0.59.1-linux.1** | Integración Linux/CachyOS/RDNA4 con mejoras selectivas de AjncSystem y shadPS4. Validación final a 30 y 60 FPS; 60 FPS experimental. Release de código fuente, sin binarios. [Notas](docs/releases/v0.59.1-linux.1.md). |
 | **0.57-fixed.1** | **AMD RDNA3/RDNA4:** arreglado el bloque negro abajo a la izquierda ([#43](https://github.com/AjncSystem/ShadowOfTheColossus-PC/issues/43): faltaba una barrera entre el borrado de la ventana y la copia de la imagen). **Sombras sin rayas** en el suelo alrededor de Wander y Agro ([#27](https://github.com/AjncSystem/ShadowOfTheColossus-PC/issues/27)). **Texturas BC5/BC6H** creadas sin uso *storage* cuando el driver de AMD lo rechaza. **Rendimiento:** base de DUDUYG (+5% frente a la opt4) y PGO de Clang (+2,6%), medidos en una Radeon 780M. **Menú dentro del juego** (Insert o L2 + R3), **iconos Xbox/Nintendo** en los avisos del juego, **lanzador en español** y página de **Controles** con vibración y reasignación del mando. |
@@ -196,6 +207,7 @@ de que o jogo precisa, no estilo do [bloodborne_pc](https://github.com/Supermedo
 
 | Versão | Melhorias e correções |
 |---|---|
+| **0.59.1-linux.3** | Distribuição Linux nativa automatizada no GitHub Actions, hashes e registro do build; requer bibliotecas compatíveis do sistema. [Notas](docs/releases/v0.59.1-linux.3.md). |
 | **0.59.1-linux.2** | Launcher gráfico Linux reaproveitado do SotC: perfis 30/60 FPS, imagens preparadas, configuração XDG e Jogar/Parar validados. [Notas](docs/releases/v0.59.1-linux.2.md). |
 | **0.59.1-linux.1** | Integração Linux/CachyOS/RDNA4 com melhorias seletivas do AjncSystem e shadPS4. Validação final em 30 e 60 FPS; 60 FPS experimental. Release de código-fonte, sem binários. [Notas](docs/releases/v0.59.1-linux.1.md). |
 | **0.57-fixed.1** | **AMD RDNA3/RDNA4:** corrigido o bloco preto no canto inferior esquerdo (issue #43: faltava uma barreira entre o clear da janela e a cópia da imagem). **Sombras sem listras** no chão perto do Wander e do Agro (issue #27). **Texturas BC5/BC6H** criadas sem uso *storage* quando o driver da AMD recusa. **Desempenho:** base do DUDUYG (+5% contra a opt4) e PGO do Clang (+2,6%), medidos numa Radeon 780M. **Menu no jogo** (Insert ou L2 + R3), **ícones Xbox/Nintendo** nos avisos do jogo, **lançador em espanhol** e página de **Controles** com vibração e remapeamento do controle. |
@@ -294,6 +306,7 @@ game needs, in the style of [bloodborne_pc](https://github.com/Supermedo/bloodbo
 
 | Version | Improvements and fixes |
 |---|---|
+| **0.59.1-linux.3** | Automated native Linux distribution in GitHub Actions, checksums and build record; compatible host libraries required. [Notes](docs/releases/v0.59.1-linux.3.md). |
 | **0.59.1-linux.2** | Shared SotC GUI adapted for Linux: 30/60 FPS profiles, prepared images, XDG settings and validated Play/Stop. [Notes](docs/releases/v0.59.1-linux.2.md). |
 | **0.59.1-linux.1** | Selective AjncSystem/shadPS4 backports for Linux/CachyOS/RDNA4. Final 30/60 FPS validation; 60 FPS remains experimental. Source-only release, no binaries. [Notes](docs/releases/v0.59.1-linux.1.md). |
 | **0.57-fixed.1** | **AMD RDNA3/RDNA4:** fixed the black block in the lower left (issue #43: a barrier was missing between the window clear and the image copy). **Shadows without stripes** on the ground around Wander and Agro (issue #27). **BC5/BC6H textures** created without storage usage when AMD's driver refuses it. **Performance:** DUDUYG base (+5% vs opt4) and Clang PGO (+2.6%), measured on a Radeon 780M. **In-game menu** (Insert or L2 + R3), **Xbox/Nintendo icons** in the game's prompts, **Spanish launcher** and a **Controls** page with vibration and gamepad remapping. |

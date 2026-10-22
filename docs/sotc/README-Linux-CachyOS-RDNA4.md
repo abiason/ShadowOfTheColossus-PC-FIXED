@@ -367,3 +367,25 @@ A prévia privada do tarball completou teste autorizado de dez minutos a
 Jogar/Parar funcionaram; imagem, áudio e controles foram confirmados.
 Hashes preservados e sem arquivos inesperados na instalação. O teste usou
 o FSR local modificado e não constitui validação de pacote público limpo.
+
+
+## Integração contínua e distribuição
+
+O workflow [Linux distribution](../../.github/workflows/linux-distribution.yml)
+compila em container isolado CachyOS e registra dependências, commits, patches
+e hashes. Pode ser iniciado manualmente em Actions; alterações relevantes
+na main/PR geram artefatos. Tags `v*-linux.*` publicam a distribuição apenas
+após sucesso. Não há dump no CI: ele não testa o jogo nem áudio.
+
+O VMA usado no build está fixado por commit e SHA256. Se esse header não
+estiver instalado no sistema, antes de compilar execute:
+
+```bash
+python3 packaging/linux/prepare_dependencies.py
+env CMAKE_INCLUDE_PATH="$PWD/out/dependencies/vma" BB_BUILD_JOBS=2 BB_PGO=off BB_LTO=OFF bash build.sh
+```
+
+O FSR recebe os patches versionados já usados pelo projeto. A verificação de
+igualdade desses patches é distinta da origem dos binários; o registro do
+build CI e seus logs identificam a nova compilação. Builds rolling não são
+prometidos como reproduzíveis bit a bit. FSR original local permanece preservado.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.59.1-linux.3 — 2026-10-22 (distribuição automatizada)
+- Workflow GitHub Actions para build Linux isolado, testes, pacote e hashes.
+- Imagem de build fixada; VMA por commit e SHA256; versões das dependências
+  e origem dos executáveis registradas no pacote.
+- FSR de distribuição aceita somente patches versionados verificados.
+- Publicação de pré-release em tags Linux após sucesso do build.
+- CI sem arquivos do jogo: não substitui teste de gameplay/áudio do artefato.
+- Detalhes: [notas da distribuição](docs/releases/v0.59.1-linux.3.md).
+
 ## 0.59.1-linux.2 — 2026-10-22 (launcher gráfico Linux)
 - Interface Tkinter do SotC adaptada ao Linux/CachyOS, com entrada
   `python3 launcher/sotc_launcher.py`, preferências XDG e atalhos .desktop.

@@ -1,0 +1,146 @@
+name: Linux distribution
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*-linux.*']
+    paths:
+      - '.github/workflows/linux-distribution.yml'
+      - 'build.sh'
+      - 'src/**'
+      - 'gpu/**'
+      - 'third_party/**'
+      - 'launcher/**'
+      - 'sotc.py'
+      - 'scripts/**'
+      - 'packaging/linux/**'
+      - 'tests/test_sotc_*.py'
+  pull_request:
+    paths:
+      - '.github/workflows/linux-distribution.yml'
+      - 'build.sh'
+      - 'src/**'
+      - 'gpu/**'
+      - 'launcher/**'
+      - 'sotc.py'
+      - 'packaging/linux/**'
+      - 'tests/test_sotc_*.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-distribution-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: cachyos/cachyos@sha256:94fed22b6ceb54292f0466d34962a37840760488a1b1393dadda4b0c7dd9b96a
+    defaults:
+      run:
+        shell: bash
+    env:
+      BB_PGO: 'off'
+      BB_LTO: 'OFF'
+      BB_BUILD_JOBS: '2'
+    steps:
+      - name: Install native build dependencies
+        run: |
+          pacman -Syu --needed --noconfirm base-devel git ca-certificates cmake ninja pkgconf \
+            python tk python-pillow vulkan-headers vulkan-icd-loader sdl3 ffmpeg \
+            boost fmt robin-map xxhash glslang zydis libx11 patchelf
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Trust checkout ownership inside the container
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule foreach --recursive 'git config --global --add safe.directory "$PWD"'
+      - name: Check clean source checkout
+        run: |
+          checkout_status="$(git status --porcelain --untracked-files=all)"
+          test -z "$checkout_status"
+      - name: Fetch pinned VMA header and license
+        run: python3 packaging/linux/prepare_dependencies.py
+      - name: Run automated checks
+        run: |
+          python3 -m unittest discover -s tests -p 'test_sotc_*.py' -v
+          bash -n build.sh
+          python3 -m py_compile sotc.py launcher/sotc_launcher.py launcher/sotc_launcher_win.py
+      - name: Build native loader and GPU
+        run: |
+          export CMAKE_INCLUDE_PATH="$PWD/out/dependencies/vma"
+          bash build.sh
+      - name: Record build inputs and artifact hashes
+        run: python3 packaging/linux/record_build.py
+      - name: Package verified versioned patches
+        run: |
+          python3 packaging/linux/package_sotc.py --allow-versioned-fsr-patches \
+            --build-record out/build-provenance.json --output dist
+          python3 packaging/linux/verify_package.py dist
+      - name: Upload native package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sotc-linux-x86_64-${{ github.sha }}
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Upload build report and logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: linux-build-report-${{ github.sha }}
+          path: |
+            out/build-provenance.json
+            out/gpu-build.log
+            out/dependencies/vma/dependency-record.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-linux.')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sotc-linux-x86_64-${{ github.sha }}
+          path: dist
+      - name: Verify archive checksum
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - name: Create distribution prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PYNOTES'
+          import os, tarfile
+          from pathlib import Path
+          tag = os.environ['RELEASE_TAG']
+          archives = list(Path('dist').glob('*.tar.gz'))
+          if len(archives) != 1:
+              raise SystemExit('Expected one verified distribution archive')
+          with tarfile.open(archives[0]) as tar:
+              notes = next((m for m in tar.getmembers() if m.name.endswith('/docs/releases/' + tag + '.md')), None)
+              if notes is None:
+                  raise SystemExit('Release notes missing from the verified archive')
+              text = tar.extractfile(notes).read().decode('utf-8')
+          text += '\n\nBuild: ' + os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '\n'
+          Path('release-notes.md').write_text(text)
+          PYNOTES
+          gh release create "$RELEASE_TAG" dist/*.tar.gz dist/SHA256SUMS \
+            --verify-tag --prerelease --title "$RELEASE_TAG — Linux distribution" \
+            --notes-file release-notes.md

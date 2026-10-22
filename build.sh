@@ -2,6 +2,13 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")"
 mkdir -p out
+# CI runners have limited memory; Ninja does not read CMAKE_BUILD_PARALLEL_LEVEL.
+if [[ -n ${BB_BUILD_JOBS:-} && ! $BB_BUILD_JOBS =~ ^[1-9][0-9]*$ ]]; then
+    echo 'BB_BUILD_JOBS must be a positive integer.' >&2
+    exit 2
+fi
+ninja_jobs=()
+if [[ -n ${BB_BUILD_JOBS:-} ]]; then ninja_jobs=(-j "$BB_BUILD_JOBS"); fi
 # Windows: MSYS2 CLANG64 (packages in packaging/windows/README.md). The GPU library is static
 # there and CMake links bb-probe.exe as well; no PGO (GCC-only flags), LTO off by default.
 case $(uname -s) in
@@ -26,7 +33,7 @@ MINGW*|MSYS*)
         -DBB_LTO="${BB_LTO:-OFF}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
         -DCMAKE_RC_COMPILER=llvm-windres >/dev/null
     echo "GPU library and loader: LTO ${BB_LTO:-OFF}"
-    if ! ninja -C out/gpu bb-probe bb-gpu-capabilities bb-play > out/gpu-build.log 2>&1; then
+    if ! ninja -C out/gpu "${ninja_jobs[@]}" bb-probe bb-gpu-capabilities bb-play > out/gpu-build.log 2>&1; then
         grep -v '^\[' out/gpu-build.log | tail -40 >&2
         echo 'Build failed (full log: out/gpu-build.log)' >&2; exit 1
     fi
@@ -76,7 +83,7 @@ cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBB_PGO="$pg
     -DBB_LTO="${BB_LTO:-ON}" -DBB_PGO_DIR="$PWD/pgo" >/dev/null
 echo "GPU library: PGO $pgo, LTO ${BB_LTO:-ON}"
 # A failed GPU build must stop here: an older libbbgpu.so would otherwise be used silently.
-if ! ninja -C out/gpu bbgpu > out/gpu-build.log 2>&1; then
+if ! ninja -C out/gpu "${ninja_jobs[@]}" bbgpu > out/gpu-build.log 2>&1; then
     grep -v '^\[' out/gpu-build.log | tail -40 >&2
     echo 'GPU library build failed (full log: out/gpu-build.log)' >&2; exit 1
 fi
