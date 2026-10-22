@@ -46,3 +46,5 @@ Rasterizer backport:
 Command processor backport:
   e6c79a5fe Fix CE/DE counter synchronization and guard absent CE task handles (#5406).
   12c5978f6 Destroy completed nested indirect-buffer coroutine frames (#5258).
+  fec7684d7 Reset the producer offset when mapping a compute queue (#5463);
+  locally reject mappings beyond NumComputeRings before slot insertion.

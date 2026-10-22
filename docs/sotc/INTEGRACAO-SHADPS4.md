@@ -434,3 +434,63 @@ Configuração: fullscreen, PS4 Pro, 5376 MiB, patch fps60, vblank emulado
 60 Hz e cache separado, com loader de diagnóstico preservado e a biblioteca
 GPU desta branch. Sem marcadores st_gameflow no log e sem confirmação
 visual/áudio explícita. Não comprova cobertura de alias cor/stencil.
+
+
+## Offset de fila compute remapeada: fec7684d
+
+Branch `integracao-shadps4-compute-ring-reset`. sceGnmMapComputeQueue já
+zera o ponteiro de leitura, mas deixava asc_next_offs_dw da utilização
+anterior do slot. sceGnmDingDong usa esse offset para recortar a próxima
+submissão; remapear um slot podia começar em posição antiga, ignorar uma
+submissão de offset igual ou interpretar um wrap indevido. A correção
+upstream zera também asc_next_offs_dw[vqid.index] após mapear com sucesso.
+
+As validações de argumentos e o retorno com índice público acrescido de um
+permanecem iguais. O array usa o índice interno, como DingDong após retirar
+esse acréscimo. MapComputeQueueWithPriority delega para essa mesma função.
+A revisão identificou que asc_queues é dinâmico enquanto o array de offsets
+tem NumComputeRings posições. A adaptação local rejeita capacidade esgotada
+antes do insert com o erro existente COMPUTEQUEUE_INTERNAL; preserva
+as demais validações. O primeiro teste foi interrompido por SIGTERM para
+incluir essa proteção e não conta como validação concluída; log preservado
+como game-interrompido-revisao.log (última amostra em 266 segundos).
+A compilação com o limite de capacidade também passou, assim como
+git diff --check e a conferência dos hashes locais do FSR.
+Não altera locks, shaders ou cache. Teste geral não comprova remapeamento
+do mesmo slot após avanço do ring; essa cobertura específica segue limitada.
+Compilação incremental e `git diff --check` passaram. Hashes das alterações
+locais do FSR conferidos e preservados. Logs em
+`out/validacao-shadps4-compute-ring-reset/`. O teste repetido com o limite
+de capacidade completou 600 segundos pelo watchdog (saída 142), com 119
+amostras até 596 segundos, sem falha fatal ou perda do dispositivo Vulkan
+registrada. Usou fullscreen, PS4 Pro, 5376 MiB, patch fps60, vblank emulado
+60 Hz e cache dedicado reutilizado da execução interrompida, com loader
+de diagnóstico preservado e a biblioteca GPU desta branch. Sem marcadores
+st_gameflow no log e sem confirmação visual/áudio explícita. Não comprova
+remapeamento do mesmo slot nem esgotamento das 56 filas.
+
+## Escopo proposto para encerrar este lote
+
+Após a correção de offset compute e a validação final do conjunto, encerrar
+o lote de backports pequenos. Adiar as mudanças abaixo para trabalhos
+independentes, com requisitos de validação próprios, sem tratá-las como
+commits obrigatórios para o funcionamento atual:
+
+- Índices: conjunto 00276961/e9f2c54c/23c41333; exige preservar barreiras
+  locais, limites mapeados, aritmética de 64 bits e fallbacks opcionais
+  maintenance5/6. Não integrar parcialmente.
+- Fila CE global f9d07487: altera ownership, FIFO, waits, idle e shutdown;
+  requer validação dedicada de submissões concorrentes.
+- Texturas/memória: mip detiling, BCn, stencil-only, crescimento de
+  subrecursos e refatorações de tracking/GC dependem de adaptação maior.
+- APIs opcionais e mudanças de IDs de draws indiretos: revisar junto ao
+  pipeline e às correções locais de partículas, quando houver necessidade.
+- CLAMP (PR #8), LDS e diagnóstico (PR #11): permanecem separados da main.
+  Sua integração não é requisito deste lote. O orçamento Neo de 5376 MiB
+  mitigou as reproduções observadas; não demonstrou a causa do fault
+  0x1a371. Retomar as experiências somente com objetivo e teste específicos.
+
+A validação final ainda deve incluir confirmação humana de imagem/áudio,
+execução no perfil estável de 30 FPS e no perfil experimental de 60 FPS.
+Os testes recentes de demonstração sem falha fatal não substituem isso nem
+comprovam cobertura individual de todos os pacotes ou shaders alterados.
