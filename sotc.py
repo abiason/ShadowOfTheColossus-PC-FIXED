@@ -11,6 +11,7 @@ Settings (environment variables, or sotc.ini beside this script as NAME=value li
                       These files are Sony firmware: they are never distributed with the port.
     SOTC_BOOT_IMAGE + SOTC_CONTENT_PROFILE  optional existing prepared image/profile pair
     SOTC_CPU_PROFILE  optional CPU profile with the prepared pair; skips all preparation
+    SOTC_DATA_DIR     optional Linux writable root for launcher output, config and default user
     SOTC_USER_DIR     saves, shader/pipeline caches; default ./user
     SOTC_UPDATE_DIR   optional: the game update; by default <game>-UPDATE or <game>-patch next to
                       the dump (as shadPS4); its files take the place of the base game's
@@ -41,8 +42,20 @@ def fail(message):
     sys.exit(1)
 
 
+def data_dir():
+    """Writable Linux launcher data root; Windows retains its existing layout."""
+    named = os.environ.get('SOTC_DATA_DIR') if os.name != 'nt' else None
+    return Path(named).expanduser().resolve() if named else PORT
+
+
+def config_path():
+    if os.name != 'nt' and os.environ.get('BB_CONFIG'):
+        return Path(os.environ['BB_CONFIG']).expanduser().resolve()
+    return data_dir() / 'sotc.ini'
+
+
 def load_ini():
-    ini = PORT / 'sotc.ini'
+    ini = config_path()
     if ini.is_file():
         for line in ini.read_text(encoding='utf-8', errors='replace').splitlines():
             line = line.strip()
@@ -134,8 +147,8 @@ def main():
     load_ini()
     env = os.environ
     os.chdir(PORT)
-    out = PORT / 'out'
-    out.mkdir(exist_ok=True)
+    out = data_dir() / 'out'
+    out.mkdir(parents=True, exist_ok=True)
     game = Path(env.get('SOTC_GAME_DIR', PORT.parent / 'CUSA08809')).resolve()
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game}: set SOTC_GAME_DIR (environment or sotc.ini).')
@@ -210,11 +223,11 @@ def main():
         clang64 = Path(env.get('MSYS2_ROOT', r'C:\msys64')) / 'clang64' / 'bin'
         if clang64.is_dir():
             env['PATH'] = f'{clang64}{os.pathsep}{env.get("PATH", "")}'
-    user = Path(env.get('SOTC_USER_DIR', PORT / 'user')).resolve()
+    user = Path(env.get('SOTC_USER_DIR', data_dir() / 'user')).resolve()
     user.mkdir(parents=True, exist_ok=True)
     env.setdefault('BB_GPU_USER_DIR', str(user))
     # Controls: key.<input>= / pad.<input>= lines of sotc.ini remap keys and buttons (src/runtime_pad.c).
-    env.setdefault('BB_CONFIG', str(PORT / 'sotc.ini'))
+    env.setdefault('BB_CONFIG', str(config_path()))
     command = [str(probe), str(boot), '--content-profile', str(content),
                *(['--sotc-cpu', str(cpu)] if cpu is not None else []),
                '--patches', str(modes_out / 'patches.bin'),

@@ -347,3 +347,17 @@ com média 52,27 FPS, mínima 28,8 e máxima 60,0 FPS. Mesmas opções
 de Neo/fullscreen/FSR1/filtro16x, acrescentando o patch fps60; vblank emulado
 permaneceu em 60 Hz. O usuário confirmou imagem, áudio e controles normais
 e sincronizados também nesse perfil. Não garante 60 FPS constantes.
+
+
+## Empacotamento nativo Linux (em preparação)
+
+O empacotador específico do SotC produz um tarball nativo com dependências
+do host, separado do AppImage legado do Bloodborne. Veja
+[packaging/linux/README.md](../../packaging/linux/README.md) para geração,
+limites de ABI, manifesto, licenças e prévia privada com FSR local alterado.
+Não modifica as releases de código-fonte já publicadas.
+
+Com `SOTC_DATA_DIR` definido no Linux, controles, configuração do runner,
+preparação e usuário padrão ficam fora da instalação. O wrapper do pacote
+seleciona a pasta XDG de dados por padrão. Sem essa variável, o checkout
+mantém seus caminhos existentes; Windows ignora esse redirecionamento.
