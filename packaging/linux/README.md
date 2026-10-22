@@ -73,11 +73,24 @@ python3 -m unittest discover -s tests -p 'test_sotc_linux_*.py'
 
 Os testes verificam whitelist/exclusões, arquivos simbólicos recusados, ELF
 x86_64, modos, hashes, preservação das imagens manuais e escrita dos dados
-fora da instalação. O teste real de jogo a partir do tarball relocacionado
-permanece separado e depende da autorização de teste controlado.
+fora da instalação. O teste real do tarball relocacionado foi autorizado e concluído conforme
+o registro abaixo. Novos testes controlados continuam exigindo confirmação.
 
 Verificação local: 28 testes passaram; tarball privado gerado e extraído em
 um caminho com espaços, hashes conferidos e libbbgpu resolvida no próprio
 pacote, com RUNPATH apenas $ORIGIN/gpu. A interface abriu as seis páginas e
 persistiu controles/preferências em dados externos com instalação somente
 leitura. Nenhum jogo foi iniciado nessa verificação.
+
+Teste real da prévia privada: 600 segundos a 30 FPS pelo wrapper SotC.sh,
+instalação somente leitura em caminho com espaços, dados e preferências em
+diretórios externos, imagem vinculada/content externos e sem perfil CPU
+opcional. Neo/fullscreen, 5376 MiB, FSR1, filtro16x e vblank emulado60.
+Sem falha fatal ou perda do dispositivo Vulkan registrada; Parar encerrou
+o grupo por SIGTERM (-15), Jogar foi habilitado novamente. O usuário confirmou
+imagem, áudio e controles normais e sincronizados. Foram 119 amostras até
+597 segundos; média 29,85 FPS, mínima 27,4 e máxima 30,0. São amostras
+periódicas, não percentis de frametime. Hashes do pacote permaneceram iguais
+e não surgiram arquivos inesperados na instalação. Logs locais preservados
+em out/validacao-pacote-linux/. Não é validação de um build limpo nem de
+outros sistemas e ABIs; a prévia com FSR modificado não foi publicada.
