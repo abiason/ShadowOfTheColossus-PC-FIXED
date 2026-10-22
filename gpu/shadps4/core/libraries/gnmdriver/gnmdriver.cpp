@@ -1222,6 +1222,10 @@ int PS4_SYSV_ABI sceGnmMapComputeQueue(u32 pipe_id, u32 queue_id, VAddr ring_bas
         return ORBIS_GNM_ERROR_COMPUTEQUEUE_INVALID_READ_PTR_ADDR;
     }
 
+    if (liverpool->asc_queues.size() >= Liverpool::NumComputeRings) {
+        return ORBIS_GNM_ERROR_COMPUTEQUEUE_INTERNAL;
+    }
+
     const auto vqid =
         liverpool->asc_queues.insert(VAddr(ring_base_addr), read_ptr_addr, ring_size_dw, pipe_id);
     // We need to offset index as `dingDong` assumes it to be from the range [1..64]
@@ -1231,6 +1235,7 @@ int PS4_SYSV_ABI sceGnmMapComputeQueue(u32 pipe_id, u32 queue_id, VAddr ring_bas
 
     const auto& queue = liverpool->asc_queues[vqid];
     *queue.read_addr = 0u;
+    asc_next_offs_dw[vqid.index] = 0;
 
     return gnm_vqid;
 }
