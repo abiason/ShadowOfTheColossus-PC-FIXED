@@ -75,3 +75,9 @@ Os testes verificam whitelist/exclusões, arquivos simbólicos recusados, ELF
 x86_64, modos, hashes, preservação das imagens manuais e escrita dos dados
 fora da instalação. O teste real de jogo a partir do tarball relocacionado
 permanece separado e depende da autorização de teste controlado.
+
+Verificação local: 28 testes passaram; tarball privado gerado e extraído em
+um caminho com espaços, hashes conferidos e libbbgpu resolvida no próprio
+pacote, com RUNPATH apenas $ORIGIN/gpu. A interface abriu as seis páginas e
+persistiu controles/preferências em dados externos com instalação somente
+leitura. Nenhum jogo foi iniciado nessa verificação.

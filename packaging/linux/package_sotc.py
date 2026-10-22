@@ -31,7 +31,7 @@ LICENSES = ('gpu/shadps4/LICENSE', 'gpu/third_party/imgui/LICENSE.txt',
             'third_party/LibAtrac9/LICENSE', 'gpu/third_party/magic_enum/LICENSE',
             'gpu/third_party/sirit/externals/SPIRV-Headers/LICENSE',
             'gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt')
-OPTIONAL = ('docs/sotc/README-Linux-CachyOS-RDNA4.md',
+OPTIONAL = ('packaging/linux/README.md', 'docs/sotc/README-Linux-CachyOS-RDNA4.md',
             'docs/releases/v0.59.1-linux.2.md', 'launcher/sotc.png', 'launcher/sotc.ico')
 WRAPPER = '''#!/bin/sh
 set -eu
@@ -41,6 +41,9 @@ export SOTC_DATA_DIR
 exec python3 "$here/launcher/sotc_launcher.py" "$@"
 '''
 NOTICE = '''Native CachyOS Linux x86_64 package; not an AppImage or universal distribution.
+Extract this directory, then run ./SotC.sh (do not start the Python entry directly).
+SotC.sh keeps generated data outside the program under the XDG data directory.
+See packaging/linux/README.md for setup, dependencies and limitations.
 Requires a compatible host: Python 3 with Tkinter, SDL3, FFmpeg libraries,
 Vulkan loader and an appropriate GPU Vulkan driver, plus the toolchain runtime
 libraries used by the supplied build. Host library ABI compatibility is required;
