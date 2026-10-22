@@ -13,8 +13,14 @@ Não oferece compatibilidade universal. Os dados continuam fora da instalação,
 na raiz XDG ou em `SOTC_DATA_DIR`.
 
 A publicação como Latest depende do build isolado, checksums, licenças e smoke
-test de GUI sem jogo. **Gameplay e áudio da linux.4 ainda não validados**;
-Linux e 60 FPS seguem experimentais. As sessões abaixo pertencem à linux.3.
+test de GUI sem jogo. O AppImage publicado completou teste de dez minutos em
+PS4 Pro/30 FPS, fullscreen e vblank 60 Hz: 119 amostras até 598 segundos,
+média 29,26 FPS, mínima 18,7 e máxima 30. Sem falha fatal registrada; parada
+programada por SIGTERM, Jogar disponível novamente e hash preservado. O usuário
+confirmou imagem, áudio e controles durante a execução, antes do encerramento.
+O processo foi verificado dentro do mount do AppImage, com dados externos.
+Linux e 60 FPS seguem experimentais; 60 FPS neste AppImage e gameplay do
+tarball linux.4 ainda não testados separadamente. As sessões abaixo são da linux.3.
 
 ## Histórico validado: v0.59.1-linux.3
 

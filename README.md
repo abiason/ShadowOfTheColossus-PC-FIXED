@@ -24,9 +24,15 @@ Não é universal. / Native tarball and AppImage target CachyOS x86_64 with
 glibc 2.43; graphics drivers and Vulkan remain host requirements.
 
 Publicação como **Latest** condicionada ao build CI e às verificações de pacote
-e interface. Gameplay da linux.4 ainda não validado. Linux e 60 FPS seguem
-experimentais. / Latest publication requires successful CI build and package/GUI
-checks; linux.4 gameplay remains untested.
+e interface. O AppImage publicado completou dez minutos em PS4 Pro/30 FPS,
+fullscreen: 119 amostras, média 29,26 FPS, mínima 18,7 e máxima 30; sem falha
+fatal registrada, parada programada e hash preservado. Imagem, áudio e controles
+confirmados pelo usuário durante a execução. / The published AppImage completed
+a ten-minute PS4 Pro/30 FPS fullscreen run: 119 samples, mean 29.26 FPS,
+minimum 18.7, maximum 30; no logged fatal fault, scheduled stop and unchanged
+image hash. The user confirmed video, audio and controls during the run.
+Linux e 60 FPS seguem experimentais; 60 FPS ainda não testado neste AppImage. /
+Linux and 60 FPS remain experimental; this AppImage's 60 FPS mode is untested.
 
 ## Histórico validado / Validated history — v0.59.1-linux.3
 
