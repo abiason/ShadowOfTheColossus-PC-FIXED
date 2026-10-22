@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.59.1-linux.2 — 2026-10-22 (launcher gráfico Linux)
+- Interface Tkinter do SotC adaptada ao Linux/CachyOS, com entrada
+  `python3 launcher/sotc_launcher.py`, preferências XDG e atalhos .desktop.
+- Perfis 30/60 FPS, imagens preparadas e preparação automática isolada.
+- Parar encerra o grupo de processos; runner desativa o watchdog padrão
+  de dez segundos do loader, permitindo timeout explícito por argumento.
+- 19 testes automatizados passaram. Jogar/Parar validados nos dois perfis;
+  usuário confirmou imagem, áudio e controles normais e sincronizados.
+- Release de código-fonte, sem binários. 60 FPS permanece experimental.
+- Detalhes: [notas da release](docs/releases/v0.59.1-linux.2.md).
+
 ## 0.59.1-linux.1 — 2026-10-22 (fork abiason, Linux/CachyOS/RDNA4)
 - Integração seletiva do AjncSystem v0.59.1 e backports shadPS4 de shaders,
   texturas, cópias Vulkan, memória sparse e filas de comandos.
