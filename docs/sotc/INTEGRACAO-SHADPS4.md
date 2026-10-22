@@ -409,3 +409,28 @@ preservado e a biblioteca GPU desta branch. Sem marcadores st_gameflow
 no log e sem confirmação visual/áudio explícita. O teste geral não comprova
 cobertura dos três caminhos nem quantifica o vazamento anterior.
 Alterações locais do FSR preservadas.
+
+
+## Associação de formatos stencil compatíveis: fecfbed0
+
+Branch `integracao-shadps4-stencil-compatible`. FindDepthTarget passa a
+associar ao depth target somente placeholders (formato Undefined) ou imagens
+cujo formato é aceito por IsFormatStencilCompatible, preservando a exigência
+de endereço igual ao plano stencil. O helper local já existe e aceita
+S8Uint, R8Uint e R8Unorm. Evita associar imagens de cor de outra classe que
+reutilizem o mesmo endereço. Mantém o fluxo de criação do placeholder.
+
+A revisão paralela confirmou independência das grandes refatorações upstream.
+Preserva SOTC_STENCIL_MEMO, a chave por endereço/tamanho/geração, invalidação
+por Register/Unregister e o gerenciamento local de slots e ownership.
+Não altera shaders ou gerações de cache. Um teste geral do SotC não comprova
+cobertura de alias entre cor e stencil nem benefício específico para o jogo.
+Compilação incremental e `git diff --check` passaram. Hashes das alterações
+locais do FSR conferidos e preservados. Logs em
+`out/validacao-shadps4-stencil-compatible/`. Teste controlado autorizado
+completou 600 segundos pelo watchdog (saída 142), com 119 amostras até
+596 segundos, sem falha fatal ou perda do dispositivo Vulkan registrada.
+Configuração: fullscreen, PS4 Pro, 5376 MiB, patch fps60, vblank emulado
+60 Hz e cache separado, com loader de diagnóstico preservado e a biblioteca
+GPU desta branch. Sem marcadores st_gameflow no log e sem confirmação
+visual/áudio explícita. Não comprova cobertura de alias cor/stencil.
