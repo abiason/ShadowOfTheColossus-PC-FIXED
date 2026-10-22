@@ -494,3 +494,43 @@ A validação final ainda deve incluir confirmação humana de imagem/áudio,
 execução no perfil estável de 30 FPS e no perfil experimental de 60 FPS.
 Os testes recentes de demonstração sem falha fatal não substituem isso nem
 comprovam cobertura individual de todos os pacotes ou shaders alterados.
+
+
+## Validação final do lote — 2026-10-22 (em andamento)
+
+Antes desta etapa, o usuário confirmou cumulativamente imagem, áudio e
+controles sincronizados e funcionando nos testes anteriores. Essa confirmação
+não é atribuída retroativamente a uma observação específica de cada backport
+nem automaticamente aos testes finais executados depois dela.
+
+Teste final de 30 FPS no código main integrado até 10fa04f5: loader normal
+out/bb-probe e biblioteca out/gpu/libbbgpu.so, fullscreen, PS4 Pro, 5376 MiB,
+EOP defer 0, DMA 0, readback async 0, limite 30 e vblank emulado 60 Hz, sem
+patch fps60. Usou o cmdline já preparado com culling desabilitado e cache
+separado em out/validacao-final-30fps/cache. Completou 600 segundos pelo
+watchdog (saída 142), sem falha fatal ou perda do dispositivo Vulkan registrada.
+Foram 119 amostras até 597 segundos: média aritmética das amostras 29,78 FPS,
+mínima 24,5 e máxima 30,0; nove amostras abaixo de 29 FPS. Essas amostras
+não equivalem a percentis de frametime nem medem sincronização audiovisual.
+Sem marcadores st_gameflow no log. Logs e resumo em out/validacao-final-30fps/.
+Confirmação humana específica deste teste final ainda pendente.
+Alterações locais do FSR preservadas.
+
+
+Teste final de 60 FPS no mesmo código main e com loader normal: mesmas
+opções de fullscreen, PS4 Pro, 5376 MiB, EOP defer 0, DMA 0 e readback async 0;
+limite 60, vblank emulado 60 Hz, patch fps60 e o cmdline de culling já
+preparado. Cache separado em out/validacao-final-60fps/cache. Completou
+600 segundos pelo watchdog (saída 142), sem falha fatal ou perda do
+dispositivo Vulkan registrada. Foram 119 amostras até 597 segundos:
+média aritmética 49,96 FPS, mínima 28,5 e máxima 60,0; oito amostras abaixo
+de 30 FPS. Não mantém 60 FPS constantes. Sem marcadores st_gameflow no log.
+Logs e resumo em out/validacao-final-60fps/. Confirmação humana específica
+dos dois testes finais solicitada ao usuário; ainda pendente ao registrar.
+
+As verificações objetivas do lote estão concluídas dentro do protocolo de
+demonstração de dez minutos. Isso não cobre todas as fases, remapeamentos,
+pressão de memória, pacotes PM4 ou shaders. A confirmação humana anterior
+continua registrada separadamente. Manter 30 FPS como perfil conservador;
+60 FPS permanece experimental, com quedas observadas. Refatorações maiores,
+CLAMP, LDS e diagnóstico permanecem no escopo adiado descrito acima.
