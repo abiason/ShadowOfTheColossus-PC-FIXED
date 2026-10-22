@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.59.1-linux.4 — 2026-10-22 (AppImage/Latest)
+
+- Distribuição em tar.gz nativo e AppImage CachyOS x86_64/glibc 2.43.
+- AppDir com Python/stdlib/Tk/Pillow, Tcl/Tk e bibliotecas selecionadas;
+  glibc, loader Vulkan e drivers gráficos permanecem no host.
+- Dados XDG externos, licenças, checksums e registro do build isolado.
+- Publicação Latest condicionada ao build e verificações; Linux/60 FPS
+  continuam experimentais. Gameplay desta versão ainda não validado.
+- Detalhes e requisitos: [notas da distribuição](docs/releases/v0.59.1-linux.4.md).
+
 ## 0.59.1-linux.3 — 2026-10-22 (distribuição automatizada)
 - Workflow GitHub Actions para build Linux isolado, testes, pacote e hashes.
 - Imagem de build fixada; VMA por commit e SHA256; versões das dependências

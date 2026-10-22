@@ -118,3 +118,41 @@ da distribuição são rolling: imagem fixada e versões registradas não
 significam build bit a bit reproduzível. O CI não possui dump nem módulos
 proprietários e não executa o jogo. A validação humana anterior foi feita
 no ambiente local descrito acima, não no runner GitHub.
+
+## AppImage e Latest — linux.4
+
+O workflow também gera um AppImage x86_64 a partir do tarball verificado.
+Inclui Python/stdlib, Tkinter/Pillow, Tcl/Tk e dependências nativas selecionadas,
+com licenças e lista de pacotes. Exclui glibc/carregador ELF e a pilha de
+Vulkan/drivers gráficos, que vêm do host. Alvo: CachyOS com glibc 2.43 e ABI
+compatível; o formato não implica compatibilidade com distribuições antigas.
+
+```bash
+python3 packaging/linux/appimage.py dist/ARQUIVO.tar.gz --output dist --work out/appimage-build
+xvfb-run -a python3 packaging/linux/verify_appimage.py dist --gui
+```
+
+O diretório de trabalho deve ser novo. Além dos requisitos anteriores, instale
+`licenses`, `desktop-file-utils`, `xorg-server-xvfb`, `xorg-xauth` e uma fonte
+como `ttf-dejavu`. Ferramenta/runtime AppImage são baixados de versões oficiais
+fixadas, com SHA256 em `appimage-tools.json`; a criação não depende de FUSE.
+
+A verificação executa o AppImage real com `--appimage-extract-and-run`, confere
+seu manifesto, importa o runtime incluído e abre as páginas da GUI em Xvfb.
+Dados/configurações vão para diretórios temporários externos. Não inicia o
+jogo, nem testa gameplay ou áudio. `out/appimage-verification.json` registra
+esse escopo. `SHA256SUMS` cobre tarball, AppImage e `APPIMAGE-BUNDLE.json`.
+
+Para usar, confira os hashes e execute:
+
+```bash
+chmod +x SotC-PC-*-x86_64.AppImage
+./SotC-PC-*-x86_64.AppImage
+# Alternativa sem FUSE:
+./SotC-PC-*-x86_64.AppImage --appimage-extract-and-run
+```
+
+Os dados continuam em XDG, com override `SOTC_DATA_DIR`. O atalho criado pela
+GUI aponta para o arquivo AppImage persistente; movê-lo exige recriar o atalho.
+A release em tag é publicada como Latest após as verificações. Linux e 60 FPS
+continuam experimentais; Latest é a seleção de distribuição no GitHub.

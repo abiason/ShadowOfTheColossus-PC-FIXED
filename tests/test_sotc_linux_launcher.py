@@ -159,6 +159,51 @@ class LinuxLauncherTests(unittest.TestCase):
         self.assertIn('"SOTC_DATA_DIR=' + str(data) + '"', text)
         messages.showerror.assert_not_called()
 
+    def test_appimage_shortcut_uses_persistent_image_and_host_environment(self):
+        import types
+        desktop = self.base / 'Desktop'
+        image = self.base / 'SotC $var`test%name.AppImage'
+        image.touch()
+        result = subprocess.CompletedProcess([], 0, str(desktop) + '\n', '')
+        messages = mock.Mock()
+        with mock.patch.dict(os.environ, {'APPIMAGE': str(image), 'SOTC_APPIMAGE': '1',
+                                         'PYTHONHOME': '/mount/python', 'LD_LIBRARY_PATH': '/mount/lib'}), \
+             mock.patch.object(self.launcher.subprocess, 'run', return_value=result) as run:
+            self.launcher.Launcher.linux_shortcut(types.SimpleNamespace(messagebox=messages))
+        text = (desktop / 'Shadow of the Colossus.desktop').read_text()
+        self.assertIn('SotC \\$var\\`test%%name.AppImage"', text)
+        self.assertNotIn('sotc_launcher.py', text)
+        self.assertNotIn('PYTHONHOME', run.call_args.kwargs['env'])
+        self.assertNotIn('LD_LIBRARY_PATH', run.call_args.kwargs['env'])
+        messages.showerror.assert_not_called()
+
+    def test_appimage_shortcut_rejects_missing_or_relative_images(self):
+        import types
+        desktop = self.base / 'Desktop'
+        result = subprocess.CompletedProcess([], 0, str(desktop) + '\n', '')
+        for image in ('relative.AppImage', str(self.base / 'missing.AppImage')):
+            messages = mock.Mock()
+            with mock.patch.dict(os.environ, {'APPIMAGE': image}), \
+                 mock.patch.object(self.launcher.subprocess, 'run', return_value=result):
+                self.launcher.Launcher.linux_shortcut(types.SimpleNamespace(messagebox=messages))
+            messages.showerror.assert_called_once()
+            self.assertFalse(desktop.exists())
+
+    def test_host_helpers_restore_original_libraries_only_inside_appimage(self):
+        values = {'PYTHONHOME': '/mount/python', 'PYTHONPATH': '/mount/modules',
+                  'TCL_LIBRARY': '/mount/tcl', 'TK_LIBRARY': '/mount/tk',
+                  'LD_LIBRARY_PATH': '/mount/lib', 'KEEP_ME': 'retained'}
+        with mock.patch.dict(os.environ, values, clear=True):
+            self.assertEqual(self.launcher.host_command_environment(), values)
+        with mock.patch.dict(os.environ, {**values, 'SOTC_APPIMAGE': '1',
+                             'SOTC_APPIMAGE_ORIGINAL_LD_LIBRARY_PATH': '/host/lib'}, clear=True):
+            env = self.launcher.host_command_environment()
+            self.assertEqual(env['LD_LIBRARY_PATH'], '/host/lib')
+            self.assertEqual(env['KEEP_ME'], 'retained')
+            for key in ('PYTHONHOME', 'PYTHONPATH', 'TCL_LIBRARY', 'TK_LIBRARY'):
+                self.assertNotIn(key, env)
+            self.assertEqual(os.environ['PYTHONHOME'], '/mount/python')
+
     def test_stop_terminates_parent_and_child_process_group(self):
         marker = self.base / 'child-terminated'
         child = ("import signal,time,pathlib,sys; "

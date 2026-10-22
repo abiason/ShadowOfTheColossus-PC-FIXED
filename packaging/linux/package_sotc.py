@@ -36,7 +36,8 @@ LICENSES = ('gpu/shadps4/LICENSE', 'gpu/third_party/imgui/LICENSE.txt',
             'gpu/third_party/sirit/externals/SPIRV-Headers/LICENSE',
             'gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt')
 OPTIONAL = ('packaging/linux/README.md', 'docs/sotc/README-Linux-CachyOS-RDNA4.md',
-            'docs/releases/v0.59.1-linux.2.md', 'docs/releases/v0.59.1-linux.3.md', 'launcher/sotc.png', 'launcher/sotc.ico')
+            'docs/releases/v0.59.1-linux.2.md', 'docs/releases/v0.59.1-linux.3.md',
+            'docs/releases/v0.59.1-linux.4.md', 'launcher/sotc.png', 'launcher/sotc.ico')
 WRAPPER = '''#!/bin/sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

@@ -2,7 +2,21 @@
 
 Documentação experimental da adaptação Linux desenvolvida por abiason, baseada nos projetos de AjncSystem e xeodeo.
 
-## Release v0.59.1-linux.3
+## Distribuição: v0.59.1-linux.4
+
+[Notas da distribuição](../releases/v0.59.1-linux.4.md) ·
+[Latest](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/latest).
+Tar.gz nativo e AppImage para CachyOS x86_64/glibc 2.43.
+O AppImage reúne Python/stdlib/Tk/Pillow, Tcl/Tk e bibliotecas selecionadas;
+exclui glibc/carregador ELF, loader Vulkan e drivers gráficos do sistema.
+Não oferece compatibilidade universal. Os dados continuam fora da instalação,
+na raiz XDG ou em `SOTC_DATA_DIR`.
+
+A publicação como Latest depende do build isolado, checksums, licenças e smoke
+test de GUI sem jogo. **Gameplay e áudio da linux.4 ainda não validados**;
+Linux e 60 FPS seguem experimentais. As sessões abaixo pertencem à linux.3.
+
+## Histórico validado: v0.59.1-linux.3
 
 [Notas completas](../releases/v0.59.1-linux.3.md) ·
 [Download no GitHub](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.3)

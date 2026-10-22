@@ -52,7 +52,8 @@ jobs:
         run: |
           pacman -Syu --needed --noconfirm base-devel git ca-certificates cmake ninja pkgconf \
             python tk python-pillow vulkan-headers vulkan-icd-loader sdl3 ffmpeg \
-            boost fmt robin-map xxhash glslang zydis libx11 patchelf
+            boost fmt robin-map xxhash glslang zydis libx11 patchelf licenses \
+            desktop-file-utils xorg-server-xvfb xorg-xauth ttf-dejavu
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: recursive
@@ -83,13 +84,22 @@ jobs:
           python3 packaging/linux/package_sotc.py --allow-versioned-fsr-patches \
             --build-record out/build-provenance.json --output dist
           python3 packaging/linux/verify_package.py dist
+      - name: Build AppImage with bundled Python and native libraries
+        run: |
+          archives=(dist/*.tar.gz)
+          test "${#archives[@]}" -eq 1
+          python3 packaging/linux/appimage.py "${archives[0]}" --output dist --work out/appimage-build
+      - name: Verify AppImage and launcher without starting the game
+        run: xvfb-run -a python3 packaging/linux/verify_appimage.py dist --gui
       - name: Upload native package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sotc-linux-x86_64-${{ github.sha }}
           path: |
             dist/*.tar.gz
+            dist/*.AppImage
             dist/SHA256SUMS
+            dist/APPIMAGE-BUNDLE.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -102,6 +112,7 @@ jobs:
             out/build-provenance.json
             out/gpu-build.log
             out/dependencies/vma/dependency-record.json
+            out/appimage-verification.json
           if-no-files-found: ignore
           retention-days: 14
 
@@ -120,7 +131,7 @@ jobs:
       - name: Verify archive checksum
         working-directory: dist
         run: sha256sum --check SHA256SUMS
-      - name: Create distribution prerelease
+      - name: Create Latest distribution release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -141,6 +152,6 @@ jobs:
           text += '\n\nBuild: ' + os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '\n'
           Path('release-notes.md').write_text(text)
           PYNOTES
-          gh release create "$RELEASE_TAG" dist/*.tar.gz dist/SHA256SUMS \
-            --verify-tag --prerelease --title "$RELEASE_TAG — Linux distribution" \
+          gh release create "$RELEASE_TAG" dist/*.tar.gz dist/*.AppImage dist/SHA256SUMS dist/APPIMAGE-BUNDLE.json \
+            --verify-tag --latest --title "$RELEASE_TAG — Linux distribution + AppImage" \
             --notes-file release-notes.md
