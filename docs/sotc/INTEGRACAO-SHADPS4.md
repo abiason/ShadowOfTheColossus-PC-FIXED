@@ -490,13 +490,13 @@ commits obrigatórios para o funcionamento atual:
   mitigou as reproduções observadas; não demonstrou a causa do fault
   0x1a371. Retomar as experiências somente com objetivo e teste específicos.
 
-A validação final ainda deve incluir confirmação humana de imagem/áudio,
-execução no perfil estável de 30 FPS e no perfil experimental de 60 FPS.
+A validação final descrita abaixo inclui confirmação humana de imagem/áudio
+e controles, execução no perfil de 30 FPS e no perfil experimental de 60 FPS.
 Os testes recentes de demonstração sem falha fatal não substituem isso nem
 comprovam cobertura individual de todos os pacotes ou shaders alterados.
 
 
-## Validação final do lote — 2026-10-22 (em andamento)
+## Validação final do lote — 2026-10-22 (concluída)
 
 Antes desta etapa, o usuário confirmou cumulativamente imagem, áudio e
 controles sincronizados e funcionando nos testes anteriores. Essa confirmação
@@ -513,7 +513,7 @@ Foram 119 amostras até 597 segundos: média aritmética das amostras 29,78 FPS,
 mínima 24,5 e máxima 30,0; nove amostras abaixo de 29 FPS. Essas amostras
 não equivalem a percentis de frametime nem medem sincronização audiovisual.
 Sem marcadores st_gameflow no log. Logs e resumo em out/validacao-final-30fps/.
-Confirmação humana específica deste teste final ainda pendente.
+O usuário confirmou imagem, áudio e controles normais neste teste final.
 Alterações locais do FSR preservadas.
 
 
@@ -525,8 +525,8 @@ preparado. Cache separado em out/validacao-final-60fps/cache. Completou
 dispositivo Vulkan registrada. Foram 119 amostras até 597 segundos:
 média aritmética 49,96 FPS, mínima 28,5 e máxima 60,0; oito amostras abaixo
 de 30 FPS. Não mantém 60 FPS constantes. Sem marcadores st_gameflow no log.
-Logs e resumo em out/validacao-final-60fps/. Confirmação humana específica
-dos dois testes finais solicitada ao usuário; ainda pendente ao registrar.
+Logs e resumo em out/validacao-final-60fps/. O usuário confirmou imagem, áudio e controles normais nos dois testes
+finais após o encerramento.
 
 As verificações objetivas do lote estão concluídas dentro do protocolo de
 demonstração de dez minutos. Isso não cobre todas as fases, remapeamentos,
@@ -534,3 +534,10 @@ pressão de memória, pacotes PM4 ou shaders. A confirmação humana anterior
 continua registrada separadamente. Manter 30 FPS como perfil conservador;
 60 FPS permanece experimental, com quedas observadas. Refatorações maiores,
 CLAMP, LDS e diagnóstico permanecem no escopo adiado descrito acima.
+
+
+Lote encerrado após a confirmação final do usuário ("tudo ok") para os
+dois perfis. Não restam alterações ou testes programados neste lote.
+Os limites de cobertura e as mudanças adiadas descritos acima permanecem
+registrados; o perfil de 60 FPS continua experimental. Alterações locais
+do submódulo FSR preservadas.
