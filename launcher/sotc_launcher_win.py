@@ -36,7 +36,7 @@ CONFIG_DIR = (Path(os.environ.get('APPDATA') or Path.home()) if IS_WINDOWS else
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 GAME_ID, GAME_VERSION = 'CUSA08809', '01.01'
 SYS_MODULES = ('libSceUlt.sprx', 'libSceNgs2.sprx')
-VERSION = '0.57-fixed.1' if IS_WINDOWS else '0.59.1-linux.3'
+VERSION = '0.57-fixed.1' if IS_WINDOWS else '0.59.1-linux.4'
 MAX_LOG_LINES = 6000
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -81,6 +81,20 @@ def run_role(argv):
     except SystemExit as stop:
         return stop.code if isinstance(stop.code, int) else (0 if stop.code is None else 1)
     return 0
+
+
+def host_command_environment():
+    """External desktop helpers use host libraries, outside the AppImage runtime."""
+    env = dict(os.environ)
+    if env.get('SOTC_APPIMAGE') == '1':
+        for key in ('PYTHONHOME', 'PYTHONPATH', 'TCL_LIBRARY', 'TK_LIBRARY'):
+            env.pop(key, None)
+        original = env.pop('SOTC_APPIMAGE_ORIGINAL_LD_LIBRARY_PATH', None)
+        if original is None:
+            env.pop('LD_LIBRARY_PATH', None)
+        else:
+            env['LD_LIBRARY_PATH'] = original
+    return env
 
 
 def run_command():
@@ -1794,7 +1808,8 @@ class Launcher:
             os.startfile(str(path))
         else:
             try:
-                subprocess.Popen(['xdg-open', str(path)], start_new_session=True)
+                subprocess.Popen(['xdg-open', str(path)], start_new_session=True,
+                                 env=host_command_environment())
             except OSError as error:
                 self.messagebox.showerror('Shadow of the Colossus', str(error))
 
@@ -1834,7 +1849,7 @@ class Launcher:
     def linux_shortcut(self):
         try:
             result = subprocess.run(['xdg-user-dir', 'DESKTOP'], capture_output=True,
-                                    text=True, timeout=5, check=True)
+                                    text=True, timeout=5, check=True, env=host_command_environment())
             desktop = Path(result.stdout.strip())
             if not desktop.is_absolute() or desktop == Path.home():
                 raise OSError(_('Área de trabalho não configurada.', 'Desktop directory not configured.'))
@@ -1844,7 +1859,14 @@ class Launcher:
                 for char in ('\\', '"', '`', '$'):
                     value = value.replace(char, '\\' + char)
                 return '"' + value + '"'
-            arguments = [sys.executable, PORT_DIR / 'launcher' / 'sotc_launcher.py']
+            image = os.environ.get('APPIMAGE')
+            if image:
+                image_path = Path(image)
+                if not image_path.is_absolute() or not image_path.is_file():
+                    raise OSError(_('Caminho AppImage inválido.', 'Invalid AppImage path.'))
+                arguments = [image_path]
+            else:
+                arguments = [sys.executable, PORT_DIR / 'launcher' / 'sotc_launcher.py']
             if os.environ.get('SOTC_DATA_DIR'):
                 arguments = ['/usr/bin/env', f'SOTC_DATA_DIR={data_dir()}', *arguments]
             command = ' '.join(quote(p) for p in arguments)

@@ -1,4 +1,4 @@
-# Shadow of the Colossus — PC (port nativo / native port) · v0.59.1-linux.3
+# Shadow of the Colossus — PC (port nativo / native port) · v0.59.1-linux.4
 
 **[Español](#español)** · **[Português](#português)** · **[English](#english)** · [Releases](../../releases) · [Changelog](CHANGELOG.md)
 
@@ -13,7 +13,22 @@
 
 ---
 
-## Linux / CachyOS / AMD RDNA4 — v0.59.1-linux.3
+## Linux / CachyOS / AMD RDNA4 — v0.59.1-linux.4
+
+[Notas da distribuição / Distribution notes](docs/releases/v0.59.1-linux.4.md) ·
+[Download Latest](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/latest).
+Tarball nativo e AppImage para **CachyOS x86_64, glibc 2.43**, com dados XDG
+externos. O AppImage reúne Python/Tk/Pillow, Tcl/Tk e bibliotecas selecionadas;
+glibc, loader Vulkan e drivers gráficos continuam sendo requisitos do host.
+Não é universal. / Native tarball and AppImage target CachyOS x86_64 with
+glibc 2.43; graphics drivers and Vulkan remain host requirements.
+
+Publicação como **Latest** condicionada ao build CI e às verificações de pacote
+e interface. Gameplay da linux.4 ainda não validado. Linux e 60 FPS seguem
+experimentais. / Latest publication requires successful CI build and package/GUI
+checks; linux.4 gameplay remains untested.
+
+## Histórico validado / Validated history — v0.59.1-linux.3
 
 **[Notas da release / Release notes](docs/releases/v0.59.1-linux.3.md)** ·
 **[Download Linux distribution](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.3)**
