@@ -381,3 +381,31 @@ Usou fullscreen, PS4 Pro, 5376 MiB, patch fps60, vblank emulado 60 Hz e
 cache separado, com loader de diagnóstico preservado e a biblioteca GPU
 desta branch. Sem marcadores st_gameflow no log e sem confirmação
 visual/áudio explícita. Não comprova cobertura dos pacotes PM4 corrigidos.
+
+
+## Liberação de corrotinas aninhadas: 12c5978f
+
+Branch `integracao-shadps4-nested-coroutines`. Adiciona destroy() após a
+conclusão dos filhos IndirectBufferConst, IndirectBuffer gráfico e
+IndirectBuffer compute. O wrapper Task não destrói o frame automaticamente;
+final_suspend usa suspend_always. Esses filhos não entram queue.submits,
+cujo processamento libera apenas tarefas de topo. A tarefa ce_task de
+ProcessGraphics é distinta e já tem destruição própria. No caminho gráfico,
+preserva a redução de gfx_ib_depth antes da destruição.
+
+A revisão paralela de ownership não identificou destruição duplicada no
+fluxo normal. Não converte Task em RAII: tarefas de topo transferem ownership
+à fila. Não trata cancelamento ou shutdown de filhos ainda suspensos.
+Corrige vazamento de frames do heap do host; não demonstra causa ou solução
+do antigo fault nativo 0x1a371. Não altera shaders ou versões de cache.
+
+Compilação incremental e `git diff --check` passaram; hashes locais do FSR
+conferidos. Logs em `out/validacao-shadps4-nested-coroutines/`.
+O teste controlado autorizado completou 600 segundos pelo watchdog
+(saída 142), com 119 amostras até 596 segundos, sem falha fatal ou perda
+do dispositivo Vulkan registrada. Usou fullscreen, PS4 Pro, 5376 MiB,
+patch fps60, vblank emulado 60 Hz e cache separado, com loader de diagnóstico
+preservado e a biblioteca GPU desta branch. Sem marcadores st_gameflow
+no log e sem confirmação visual/áudio explícita. O teste geral não comprova
+cobertura dos três caminhos nem quantifica o vazamento anterior.
+Alterações locais do FSR preservadas.
