@@ -13,8 +13,11 @@ por teste de dez minutos em PS4 Pro, 30 FPS e fullscreen: 119 amostras até
 controles foram confirmados pelo usuário. Sem falha fatal registrada; parada
 programada por SIGTERM e Jogar disponível novamente. Os 40 arquivos verificados
 permaneceram íntegros, em instalação somente leitura com dados externos.
-O perfil experimental de 60 FPS foi testado anteriormente em builds locais,
-não no tarball publicado. Veja nas notas o commit e o hash do artefato testado.
+Um segundo teste do mesmo tarball completou dez minutos com o patch
+experimental de 60 FPS e vblank a 60 Hz: 119 amostras até 597 segundos,
+média 55,2 FPS, mínima 30,4 e máxima 60. Imagem, áudio e controles
+confirmados; sem falha fatal, parada programada e pacote íntegro.
+Não sustenta 60 FPS constantes. Veja nas notas o commit e o hash testados.
 
 ### Histórico: v0.59.1-linux.2
 
