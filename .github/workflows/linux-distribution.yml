@@ -57,8 +57,14 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - name: Trust checkout ownership inside the container
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule foreach --recursive 'git config --global --add safe.directory "$PWD"'
       - name: Check clean source checkout
-        run: test -z "$(git status --porcelain --untracked-files=all)"
+        run: |
+          checkout_status="$(git status --porcelain --untracked-files=all)"
+          test -z "$checkout_status"
       - name: Fetch pinned VMA header and license
         run: python3 packaging/linux/prepare_dependencies.py
       - name: Run automated checks
