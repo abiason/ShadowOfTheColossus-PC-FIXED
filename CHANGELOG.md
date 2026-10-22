@@ -7,7 +7,11 @@
   glibc, loader Vulkan e drivers gráficos permanecem no host.
 - Dados XDG externos, licenças, checksums e registro do build isolado.
 - Publicação Latest condicionada ao build e verificações; Linux/60 FPS
-  continuam experimentais. Gameplay desta versão ainda não validado.
+  continuam experimentais.
+- AppImage publicado completou dez minutos em PS4 Pro/30 FPS/fullscreen:
+  119 amostras, média 29,26 FPS, mínima 18,7, máxima 30. Sem falha fatal;
+  parada programada e hash preservado. Usuário confirmou imagem, áudio e
+  controles durante a execução. Perfil de 60 FPS deste AppImage não testado.
 - Detalhes e requisitos: [notas da distribuição](docs/releases/v0.59.1-linux.4.md).
 
 ## 0.59.1-linux.3 — 2026-10-22 (distribuição automatizada)
