@@ -353,3 +353,31 @@ fps60, vblank emulado 60 Hz e cache separado, usando loader de diagnóstico
 preservado e a biblioteca GPU desta branch. Não houve marcadores st_gameflow
 no log. Não foi fornecida confirmação visual/áudio explícita. O resultado
 não comprova cobertura das operações FP64 no jogo.
+
+
+## Sincronização dos contadores CE/DE: e6c79a5f
+
+Branch `integracao-shadps4-ce-de-sync`. Aplica as duas alterações upstream
+em Liverpool. WaitOnDeCounterDiff passa a comparar CE menos DE, protegendo
+a subtração unsigned quando DE está à frente. WaitOnCeCounter verifica se
+o handle da tarefa CE existe antes de chamar done(); ProcessGraphics pode
+receber CCB vazio e deixar essa tarefa ausente. O escoamento final da tarefa
+já possui guarda de handle no código local.
+
+A revisão dos limites confirma que CE abaixo de DE não espera na diferença;
+CE igual a DE espera somente para diff zero; CE à frente espera quando a
+diferença é maior ou igual ao limite. Não altera incremento, reset, ownership
+das corrotinas, DrawScan ou marcadores locais. Não inclui a reformulação
+global das filas CE nem a correção separada de destruição de tarefas aninhadas.
+Não altera shaders ou versões de cache. A revisão não equivale a um teste
+funcional dos pacotes PM4; o teste geral do jogo pode não exercitar esses casos.
+
+Compilação incremental de bbgpu e `git diff --check` passaram. Hashes das
+alterações locais do FSR conferidos e preservados. Logs em
+`out/validacao-shadps4-ce-de/`. Teste controlado autorizado completou
+600 segundos e encerrou pelo watchdog (saída 142), com 119 amostras até
+597 segundos, sem falha fatal ou perda do dispositivo Vulkan registrada.
+Usou fullscreen, PS4 Pro, 5376 MiB, patch fps60, vblank emulado 60 Hz e
+cache separado, com loader de diagnóstico preservado e a biblioteca GPU
+desta branch. Sem marcadores st_gameflow no log e sem confirmação
+visual/áudio explícita. Não comprova cobertura dos pacotes PM4 corrigidos.

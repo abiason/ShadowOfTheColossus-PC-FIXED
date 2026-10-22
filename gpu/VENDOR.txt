@@ -40,3 +40,6 @@ Sparse memory backport:
   adapted to the local chunk allocator.
 Rasterizer backport:
   14ada48a1 Apply pending fast clears before skipping FMASK decompression (#5283).
+
+Command processor backport:
+  e6c79a5fe Fix CE/DE counter synchronization and guard absent CE task handles (#5406).
