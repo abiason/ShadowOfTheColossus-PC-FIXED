@@ -33,6 +33,12 @@ Imagem, áudio e controles confirmados; instalação e hashes preservados. /
 The published tarball passed a ten-minute PS4 Pro, 30 FPS fullscreen test:
 119 samples, mean 29.21 FPS, minimum 18.7, maximum 30; no logged fatal fault.
 Video, audio and controls confirmed; package files remained unchanged.
+O mesmo pacote completou dez minutos com o patch experimental de 60 FPS:
+119 amostras, média 55,2 FPS, mínima 30,4 e máxima 60; imagem, áudio e
+controles confirmados, sem falha fatal registrada. Não mantém 60 FPS constantes. /
+The same package also completed a ten-minute experimental 60 FPS test:
+119 samples, mean 55.2 FPS, minimum 30.4, maximum 60; video, audio and
+controls confirmed, with no logged fatal fault. It does not sustain 60 FPS.
 The following 30/60 FPS results refer to earlier local GUI builds.
 
 - **Ambiente / Hardware:** CachyOS, Ryzen 7 5700X, Radeon RX 9060 XT 16 GB,

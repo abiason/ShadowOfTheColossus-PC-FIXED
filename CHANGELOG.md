@@ -10,6 +10,9 @@
 - Validação posterior do tarball publicado: dez minutos em PS4 Pro/30 FPS,
   fullscreen; 119 amostras, média 29,21 FPS, mínima 18,7. Imagem, áudio e
   controles confirmados; parada programada, sem falha fatal e hashes intactos.
+- Segundo teste do mesmo tarball com patch de 60 FPS: dez minutos, 119 amostras,
+  média 55,2 FPS, mínima 30,4 e máxima 60. Imagem, áudio e controles confirmados;
+  sem falha fatal, pacote íntegro. Não sustenta 60 FPS constantes.
 - Detalhes: [notas da distribuição](docs/releases/v0.59.1-linux.3.md).
 
 ## 0.59.1-linux.2 — 2026-10-22 (launcher gráfico Linux)
