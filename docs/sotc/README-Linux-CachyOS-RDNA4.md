@@ -32,6 +32,60 @@ env BB_PGO=off BB_LTO=OFF bash build.sh
 
 O executável será gerado em `out/bb-probe`.
 
+## Interface gráfica Linux (experimental)
+
+A interface Tkinter do SotC é compartilhada com o Windows. Para abri-la:
+
+```bash
+python3 launcher/sotc_launcher.py
+```
+
+No CachyOS, a biblioteca Tk é necessária (`sudo pacman -S --needed tk`).
+Pillow é opcional para redimensionar as imagens do próprio dump. O launcher
+não compila o projeto nem inicia o jogo ao abrir a janela.
+
+- **Jogo e saves:** selecione o dump CUSA08809 e os módulos de áudio do seu
+  console. Para reutilizar a preparação já existente, selecione também
+  `boot-linked.bin` e `content.bin`; o perfil `sotc-cpu.bin` é opcional.
+  A imagem vinculada deve conter os módulos de áudio. Os dois primeiros
+  campos precisam ser preenchidos juntos. Saves não são importados
+  automaticamente na configuração inicial Linux; há importação manual.
+- **Imagem e FPS:** sem marcar 60 FPS, usa limite de 30; marcado, aplica o
+  patch experimental de 60 FPS quando a versão do dump é compatível.
+  Ambos os perfis Linux usam vblank emulado de 60 Hz. PS4 Pro habilita as
+  opções do jogo, mas o modo Desempenho deve ser selecionado dentro dele.
+- **Controles e Avançado:** mantém as opções de teclado, mouse, gamepad,
+  vibração, idioma, variáveis extras, atalhos e logs da interface existente.
+  No Linux, valores extras com espaços podem ser escritos como
+  `SOTC_CACHE_DIR="/caminho/cache com espaços"`. Overrides são intencionais e
+  podem mudar o perfil validado.
+- **Jogar / Parar:** o launcher inicia o runner nativo e interrompe seu grupo
+  de processos. O registro aparece na interface e em `user/last_run.log`
+  (ou na pasta de dados selecionada). Nenhum comando é montado por shell.
+
+Os padrões Linux são PS4 Pro, fullscreen, DMA desligado, memória direta de
+5376 MiB, EOP defer desligado e readback assíncrono desligado. O filtro 16x
+começa desmarcado. As preferências ficam em
+`${XDG_CONFIG_HOME:-~/.config}/sotc-launcher/settings.json`, separadas das
+configurações Windows. Um arquivo legado `~/sotc-launcher/settings.json`
+é lido como fallback e salvo no novo local quando houver gravação.
+
+A preparação automática Linux fica em `out/launcher-linux/prepared`; patches
+e cmdline em `out/launcher-linux`. Não sobrescreve as imagens manuais em
+`out/boot-linked.bin` ou os arquivos externos selecionados. Com arquivos
+preparados, não executa a preparação nem refaz o vínculo dos módulos.
+O comando de terminal e o script de execução já testados continuam disponíveis.
+
+Validação desta adaptação: 19 testes automatizados, abertura e navegação nas
+seis páginas com configuração temporária, persistência e geração de modes
+com o dump real equivalente aos arquivos já testados. O teste do jogo iniciado pela interface em 30 FPS ultrapassou dez minutos,
+sem falha fatal ou perda do dispositivo Vulkan registrada. Parar encerrou
+o grupo por SIGTERM (saída -15), e Jogar foi habilitado novamente. A primeira
+tentativa revelou o watchdog padrão de dez segundos do loader; o runner
+agora passa --timeout 0 por padrão, com override explícito ainda permitido.
+A interface não foi revalidada visualmente em Windows. Os testes do backend verificam a preservação dos
+padrões de timing Windows.
+
 ## Correções de compatibilidade Linux
 - Reserva da imagem do jogo abaixo de 2 GiB com mmap e MAP_FIXED_NOREPLACE.
 - Ajustes de compilação GCC e definição de _GNU_SOURCE.
@@ -276,3 +330,19 @@ Este repositório não distribui arquivos do jogo, imagens vinculadas, dumps de 
 ### Monitoramento
 
 O MangoHud foi utilizado para observar FPS e frametime. Os resultados descritos neste documento correspondem ao ambiente de teste informado acima.
+
+O teste de 30 FPS pela GUI usou fullscreen, Neo, 5376 MiB, FSR1 e filtro 16x
+ativado na interface. Foram 124 amostras até 622 segundos, com média
+29,77 FPS e mínima 23,9 FPS. São amostras periódicas, não métricas de
+frametime. O usuário confirmou imagem, áudio e controles normais e sincronizados
+nesse teste. Logs preservados em
+out/validacao-launcher-linux/.
+
+O teste do perfil experimental de 60 FPS pela interface também completou
+600 segundos e encerrou pelo botão Parar programado, com saída SIGTERM -15.
+Sem falha fatal ou perda do dispositivo Vulkan registrada; Jogar voltou
+a ficar habilitado e Parar desabilitado. Foram 119 amostras até 596 segundos,
+com média 52,27 FPS, mínima 28,8 e máxima 60,0 FPS. Mesmas opções
+de Neo/fullscreen/FSR1/filtro16x, acrescentando o patch fps60; vblank emulado
+permaneceu em 60 Hz. O usuário confirmou imagem, áudio e controles normais
+e sincronizados também nesse perfil. Não garante 60 FPS constantes.

@@ -9,13 +9,15 @@ Settings (environment variables, or sotc.ini beside this script as NAME=value li
     SOTC_SYS_MODULES  folder with YOUR OWN console's decrypted libSceNgs2.sprx and
                       libSceUlt.sprx (shadPS4's user/sys_modules). Without it the game is silent.
                       These files are Sony firmware: they are never distributed with the port.
+    SOTC_BOOT_IMAGE + SOTC_CONTENT_PROFILE  optional existing prepared image/profile pair
+    SOTC_CPU_PROFILE  optional CPU profile with the prepared pair; skips all preparation
     SOTC_USER_DIR     saves, shader/pipeline caches; default ./user
     SOTC_UPDATE_DIR   optional: the game update; by default <game>-UPDATE or <game>-patch next to
                       the dump (as shadPS4); its files take the place of the base game's
     SOTC_DLC_DIR      optional: the game's DLC (one folder per add-on with sce_sys/param.sfo,
                       or shadPS4's addcont folder holding CUSA08809)
     SOTC_MODES        optional, comma-separated: af16 (16x anisotropic filtering),
-                      fps60 (removes the 30 FPS cap; experimental, vblank at 120 Hz)
+                      fps60 (experimental; emulated vblank 60 Hz on Linux, 120 Hz on Windows)
     SOTC_CVARS        engine settings, NAME=VALUE separated by spaces (e.g. r_motionBlurEnable=0)
     BB_GAMEPAD        the gamepad to use (its name or part of it), when several are connected
     key.<input>=Keys, pad.<input>=buttons   remap the controls (README.md, Controles)
@@ -51,15 +53,18 @@ def load_ini():
 
 def no_console():
     """Started without a console (the launcher): console programs must not open their own."""
+    if os.name != 'nt':
+        return 0
     import ctypes
     return 0 if ctypes.windll.kernel32.GetConsoleWindow() else subprocess.CREATE_NO_WINDOW
 
 
 def find_probe():
-    for candidate in (PORT / 'bin' / 'bb-probe.exe', PORT / 'out' / 'bb-probe.exe'):
-        if candidate.is_file():
+    name = 'bb-probe.exe' if os.name == 'nt' else 'bb-probe'
+    for candidate in (PORT / 'bin' / name, PORT / 'out' / name):
+        if candidate.is_file() and (os.name == 'nt' or os.access(candidate, os.X_OK)):
             return candidate
-    fail('bb-probe.exe not found: build it with build.sh (MSYS2 CLANG64) or use a packaged build.')
+    fail(f'{name} not found or not executable: build it with build.sh or use a packaged build.')
 
 
 def run_script(name, *args):
@@ -115,6 +120,16 @@ def merged_source(game, update, out):
     return merged
 
 
+def apply_timing_defaults(env, modes):
+    """Emulated timing defaults; explicit user settings take precedence."""
+    fps60 = 'fps60' in {mode.strip().lower() for mode in modes.split(',')}
+    if fps60:
+        env.setdefault('BB_VBLANK_HZ', '120' if os.name == 'nt' else '60')
+    if os.name != 'nt':
+        env.setdefault('BB_FPS_LIMIT', '60' if fps60 else '30')
+        env.setdefault('BB_VBLANK_HZ', '60')
+
+
 def main():
     load_ini()
     env = os.environ
@@ -125,53 +140,73 @@ def main():
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game}: set SOTC_GAME_DIR (environment or sotc.ini).')
 
-    modules = []
-    sys_modules = env.get('SOTC_SYS_MODULES')
-    if sys_modules:
-        modules = [Path(sys_modules) / name for name in SYS_MODULES]
-        missing = [m.name for m in modules if not m.is_file()]
-        if missing:
-            print(f'SOTC_SYS_MODULES: {", ".join(missing)} not found in {sys_modules}; no sound', file=sys.stderr)
-            modules = []
+    boot_setting = env.get('SOTC_BOOT_IMAGE')
+    content_setting = env.get('SOTC_CONTENT_PROFILE')
+    cpu_setting = env.get('SOTC_CPU_PROFILE')
+    if bool(boot_setting) != bool(content_setting) or (cpu_setting and not boot_setting):
+        fail('Set SOTC_BOOT_IMAGE and SOTC_CONTENT_PROFILE together; SOTC_CPU_PROFILE is optional.')
+    prepared = bool(boot_setting)
+    modes_out = out / 'launcher-linux' if os.name != 'nt' else out
+    modes_out.mkdir(parents=True, exist_ok=True)
+    if prepared:
+        boot = Path(boot_setting).resolve()
+        content = Path(content_setting).resolve()
+        cpu = Path(cpu_setting).resolve() if cpu_setting else None
+        for image in (boot, content, cpu):
+            if image is not None and not image.is_file():
+                fail(f'Prepared image/profile not found: {image}')
+        source = game
     else:
-        print('SOTC_SYS_MODULES not set: no sound (see sotc.py)', file=sys.stderr)
+        # Keep launcher preparation separate from manually prepared Linux images.
+        prepare_out = modes_out / 'prepared' if os.name != 'nt' else out
+        prepare_out.mkdir(parents=True, exist_ok=True)
+        modules = []
+        sys_modules = env.get('SOTC_SYS_MODULES')
+        if sys_modules:
+            modules = [Path(sys_modules) / name for name in SYS_MODULES]
+            missing = [m.name for m in modules if not m.is_file()]
+            if missing:
+                print(f'SOTC_SYS_MODULES: {", ".join(missing)} not found in {sys_modules}; no sound', file=sys.stderr)
+                modules = []
+        else:
+            print('SOTC_SYS_MODULES not set: no sound (see sotc.py)', file=sys.stderr)
 
-    # A complete update (shadPS4's <game>-UPDATE): the image comes from its eboot, and its files
-    # take the place of the base game's while the game runs (src/runtime_file.c).
-    update = game_update(game)
-    source = game
-    if update:
-        print(f'Game update: {update}')
-        env['SOTC_UPDATE_DIR'] = str(update)
-        if (update / 'eboot.bin').is_file():
-            source = merged_source(game, update, out)
-    stamp = out / 'prepared.txt'
-    wanted = fingerprint(source, modules)
-    images = [out / name for name in ('boot-linked.bin', 'content.bin', 'sotc-cpu.bin')]
-    if not stamp.is_file() or stamp.read_text().strip() != wanted or not all(p.is_file() for p in images):
-        print('Preparing the game image...')
-        run_script('prepare.py', source, '--out', out)
-        link = ['link_modules.py', source, '--out', out]
-        if modules:
-            link += ['--sys-modules', modules[0].parent]
-        run_script(*link)
-        run_script('content_profile.py', source, '--out', out)
-        run_script('sotc_cpu.py', source, '--out', out)
-        stamp.write_text(wanted + '\n')
+        # A complete update (shadPS4's <game>-UPDATE): the image comes from its eboot, and its files
+        # take the place of the base game's while the game runs (src/runtime_file.c).
+        update = game_update(game)
+        source = game
+        if update:
+            print(f'Game update: {update}')
+            env['SOTC_UPDATE_DIR'] = str(update)
+            if (update / 'eboot.bin').is_file():
+                source = merged_source(game, update, prepare_out)
+        stamp = prepare_out / 'prepared.txt'
+        wanted = fingerprint(source, modules)
+        images = [prepare_out / name for name in ('boot-linked.bin', 'content.bin', 'sotc-cpu.bin')]
+        if not stamp.is_file() or stamp.read_text().strip() != wanted or not all(p.is_file() for p in images):
+            print('Preparing the game image...')
+            run_script('prepare.py', source, '--out', prepare_out)
+            link = ['link_modules.py', source, '--out', prepare_out]
+            if modules:
+                link += ['--sys-modules', modules[0].parent]
+            run_script(*link)
+            run_script('content_profile.py', source, '--out', prepare_out)
+            run_script('sotc_cpu.py', source, '--out', prepare_out)
+            stamp.write_text(wanted + '\n')
+
+        boot, content, cpu = images
 
     modes = env.get('SOTC_MODES', '')
     cvars = env.get('SOTC_CVARS')
     if cvars is None:
         # Without the launcher: the culling settings of Pink-shadPS4 (same image, fewer GPU waits).
         cvars = 'doIndexBufferCulling=0 doSunShadowIndexBufferCulling=0'
-    run_script('sotc_modes.py', source, '--out', out, '--modes', modes, '--cvars', cvars)
-    if 'fps60' in modes.lower():
-        # The game waits for vblanks: at 60 Hz an uncapped frame still rounds up to 30 FPS.
-        env.setdefault('BB_VBLANK_HZ', '120')
+    run_script('sotc_modes.py', source, '--out', modes_out, '--modes', modes, '--cvars', cvars)
+    apply_timing_defaults(env, modes)
 
     probe = find_probe()
     # Development builds run from the MSYS2 tree: its CLANG64 DLLs (SDL3, FFmpeg, ...).
-    if not (probe.parent / 'SDL3.dll').is_file():
+    if os.name == 'nt' and not (probe.parent / 'SDL3.dll').is_file():
         clang64 = Path(env.get('MSYS2_ROOT', r'C:\msys64')) / 'clang64' / 'bin'
         if clang64.is_dir():
             env['PATH'] = f'{clang64}{os.pathsep}{env.get("PATH", "")}'
@@ -180,10 +215,11 @@ def main():
     env.setdefault('BB_GPU_USER_DIR', str(user))
     # Controls: key.<input>= / pad.<input>= lines of sotc.ini remap keys and buttons (src/runtime_pad.c).
     env.setdefault('BB_CONFIG', str(PORT / 'sotc.ini'))
-    command = [str(probe), str(out / 'boot-linked.bin'), '--content-profile', str(out / 'content.bin'),
-               '--sotc-cpu', str(out / 'sotc-cpu.bin'), '--patches', str(out / 'patches.bin'),
-               *(['--sotc-cmdline', str(out / 'cmdline.bin')] if (out / 'cmdline.bin').is_file() else []),
-               '--app0', str(game), '--user', str(user), *sys.argv[1:]]
+    command = [str(probe), str(boot), '--content-profile', str(content),
+               *(['--sotc-cpu', str(cpu)] if cpu is not None else []),
+               '--patches', str(modes_out / 'patches.bin'),
+               *(['--sotc-cmdline', str(modes_out / 'cmdline.bin')] if (modes_out / 'cmdline.bin').is_file() else []),
+               '--app0', str(game), '--user', str(user), '--timeout', '0', *sys.argv[1:]]
     # SOTC_WRAP: a JSON list put in front of the game, e.g. RenderDoc
     # ["C:/Program Files/RenderDoc/renderdoccmd.exe", "capture", "-w", "-c", "<file>"]; F12 then
     # captures the frame (SOTC_RDOC_SUBMITS submissions).

@@ -47,6 +47,14 @@ is limited and Windows was not retested for this batch.
 
 **Build on Linux:** `env BB_PGO=off BB_LTO=OFF bash build.sh`
 
+**Interface gráfica Linux / Linux GUI (experimental):**
+`python3 launcher/sotc_launcher.py` — requer / requires Tk.
+[Configuração e perfis / Setup and profiles](docs/sotc/README-Linux-CachyOS-RDNA4.md#interface-gráfica-linux-experimental).
+A interface foi adicionada após a release de código-fonte acima. Jogar/Parar
+foi validado em 30 e 60 FPS, com imagem, áudio e controles confirmados pelo
+usuário. / The launcher was added after the source release above. Play/Stop
+was tested at 30 and 60 FPS; the user confirmed video, audio and controls.
+
 **Guia / Guide:** [Linux / CachyOS / AMD RDNA4](docs/sotc/README-Linux-CachyOS-RDNA4.md) ·
 [Registro técnico / Integration report](docs/sotc/INTEGRACAO-SHADPS4.md)
 
