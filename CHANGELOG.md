@@ -11,7 +11,11 @@
 - AppImage publicado completou dez minutos em PS4 Pro/30 FPS/fullscreen:
   119 amostras, média 29,26 FPS, mínima 18,7, máxima 30. Sem falha fatal;
   parada programada e hash preservado. Usuário confirmou imagem, áudio e
-  controles durante a execução. Perfil de 60 FPS deste AppImage não testado.
+  controles durante a execução.
+- Segundo teste do AppImage, patch de 60 FPS: dez minutos, 119 amostras,
+  média 51,04 FPS, mínima 25,9, máxima 60; sem falha fatal, parada
+  programada e hash intacto. Imagem, áudio e controles confirmados durante
+  a sessão. O perfil não sustenta 60 FPS constantes.
 - Detalhes e requisitos: [notas da distribuição](docs/releases/v0.59.1-linux.4.md).
 
 ## 0.59.1-linux.3 — 2026-10-22 (distribuição automatizada)
