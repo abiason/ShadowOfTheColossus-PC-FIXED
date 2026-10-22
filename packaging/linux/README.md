@@ -94,3 +94,27 @@ periódicas, não percentis de frametime. Hashes do pacote permaneceram iguais
 e não surgiram arquivos inesperados na instalação. Logs locais preservados
 em out/validacao-pacote-linux/. Não é validação de um build limpo nem de
 outros sistemas e ABIs; a prévia com FSR modificado não foi publicada.
+
+
+## Build automatizado no GitHub
+
+O workflow [Linux distribution](../../.github/workflows/linux-distribution.yml)
+faz checkout limpo com submódulos, instala dependências em container CachyOS
+x86-64 fixado por digest e baixa VMA por commit e SHA256. Compila com
+`BB_BUILD_JOBS=2 BB_PGO=off BB_LTO=OFF`, executa testes e gera o tarball e
+`SHA256SUMS`. Pushes na main, PRs relevantes e Run workflow geram artefatos.
+Tags `v*-linux.*` também publicam uma pré-release após o job de build passar.
+
+O empacotador aceita `--allow-versioned-fsr-patches --build-record
+out/build-provenance.json` somente quando o diff completo do FSR corresponde
+exatamente aos patches do HEAD, sem mudanças adicionais, staged ou arquivos
+extras. O comparador usa índice e object store temporários, sem alterar o
+FSR original. Commits e hashes do registro devem coincidir com os fontes e
+executáveis de entrada. O modo de prévia privada continua separado.
+
+`BUILD-PROVENANCE.json` registra ferramentas, pacotes, flags, commits,
+hashes e execução do Actions; não é atestação criptográfica. Os repositórios
+da distribuição são rolling: imagem fixada e versões registradas não
+significam build bit a bit reproduzível. O CI não possui dump nem módulos
+proprietários e não executa o jogo. A validação humana anterior foi feita
+no ambiente local descrito acima, não no runner GitHub.

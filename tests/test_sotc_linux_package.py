@@ -79,6 +79,36 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(manifest['private_preview_only'])
             self.assertTrue(any('do not upload' in w for w in manifest['warnings']))
 
+    def make_record(self):
+        record = {'git': {'head': 'a' * 40}, 'binaries': {
+            name: {'sha256': pkg.digest(self.root / name)}
+            for name in ('out/bb-probe', 'out/bb-gpu-capabilities', 'out/gpu/libbbgpu.so')}}
+        path = self.root / 'out/build-provenance.json'
+        path.write_text(json.dumps(record))
+        return path
+
+    def test_verified_patches_and_matching_record_allow_public_manifest(self):
+        self.dirty = ' M src/fsr.c'
+        record = self.make_record()
+        with patch.object(pkg, 'verify_versioned_patches', return_value={'diff_sha256': 'known'}):
+            archive = pkg.package(self.root, allow_versioned_fsr_patches=True, build_record=record)
+        with tarfile.open(archive) as tar:
+            member = next(m for m in tar.getmembers() if m.name.endswith('/MANIFEST.json'))
+            manifest = json.load(tar.extractfile(member))
+            self.assertFalse(manifest['private_preview_only'])
+            self.assertEqual(manifest['versioned_fsr_patch_state']['diff_sha256'], 'known')
+            self.assertIn('BUILD-PROVENANCE.json', manifest['sha256'])
+
+    def test_modified_binary_and_missing_record_are_refused(self):
+        self.dirty = ' M src/fsr.c'
+        with patch.object(pkg, 'verify_versioned_patches', return_value={'diff_sha256': 'known'}):
+            with self.assertRaisesRegex(ValueError, 'requires --build-record'):
+                pkg.package(self.root, allow_versioned_fsr_patches=True)
+            record = self.make_record()
+            (self.root / 'out/bb-probe').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+                pkg.package(self.root, allow_versioned_fsr_patches=True, build_record=record)
+
     def test_symlink_source_and_parent_refused(self):
         source = self.root / 'sotc.py'
         source.unlink()
