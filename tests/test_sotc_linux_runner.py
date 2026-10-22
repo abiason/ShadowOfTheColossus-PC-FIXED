@@ -27,7 +27,7 @@ class LinuxRunnerTests(unittest.TestCase):
         self.env = {'SOTC_GAME_DIR': str(self.game), 'SOTC_BOOT_IMAGE': str(self.boot),
                     'SOTC_CONTENT_PROFILE': str(self.content)}
 
-    def run_prepared(self, **extra):
+    def run_prepared(self, loader_args=(), **extra):
         calls = []
         def modes(name, *args):
             calls.append((name, args))
@@ -39,7 +39,7 @@ class LinuxRunnerTests(unittest.TestCase):
              patch.object(runner.os, 'chdir'), patch.object(runner, 'run_script', side_effect=modes), \
              patch.object(runner, 'fingerprint', side_effect=AssertionError('must not fingerprint')), \
              patch.object(runner, 'find_probe', return_value=self.root / 'bb-probe'), \
-             patch.object(runner.sys, 'argv', ['sotc.py']), \
+             patch.object(runner.sys, 'argv', ['sotc.py', *loader_args]), \
              patch.object(runner.subprocess, 'run', return_value=Mock(returncode=0)) as run:
             self.assertEqual(runner.main(), 0)
             return run.call_args.args[0], dict(os.environ), calls
@@ -58,6 +58,16 @@ class LinuxRunnerTests(unittest.TestCase):
         self.assertEqual(env['BB_FPS_LIMIT'], '30')
         self.assertEqual(env['BB_VBLANK_HZ'], '60')
         self.assertNotIn('PATH', env)
+
+    def test_launcher_disables_probe_default_ten_second_watchdog(self):
+        command, _, _ = self.run_prepared()
+        self.assertEqual(command[command.index('--timeout') + 1], '0')
+
+    def test_explicit_timeout_can_override_continuous_default(self):
+        command, _, _ = self.run_prepared(loader_args=('--timeout', '600'))
+        self.assertEqual(command[-2:], ['--timeout', '600'])
+        values = [command[i + 1] for i, arg in enumerate(command) if arg == '--timeout']
+        self.assertEqual(values, ['0', '600'])
 
     def test_fps60_defaults_and_explicit_overrides(self):
         _, env, _ = self.run_prepared(SOTC_MODES='fps60')

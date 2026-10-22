@@ -76,11 +76,14 @@ e cmdline em `out/launcher-linux`. Não sobrescreve as imagens manuais em
 preparados, não executa a preparação nem refaz o vínculo dos módulos.
 O comando de terminal e o script de execução já testados continuam disponíveis.
 
-Validação desta adaptação: 17 testes automatizados, abertura e navegação nas
+Validação desta adaptação: 19 testes automatizados, abertura e navegação nas
 seis páginas com configuração temporária, persistência e geração de modes
-com o dump real equivalente aos arquivos já testados. O teste do jogo
-iniciado pela interface ainda está pendente; a interface não foi revalidada
-visualmente em Windows. Os testes do backend verificam a preservação dos
+com o dump real equivalente aos arquivos já testados. O teste do jogo iniciado pela interface em 30 FPS ultrapassou dez minutos,
+sem falha fatal ou perda do dispositivo Vulkan registrada. Parar encerrou
+o grupo por SIGTERM (saída -15), e Jogar foi habilitado novamente. A primeira
+tentativa revelou o watchdog padrão de dez segundos do loader; o runner
+agora passa --timeout 0 por padrão, com override explícito ainda permitido.
+A interface não foi revalidada visualmente em Windows. Os testes do backend verificam a preservação dos
 padrões de timing Windows.
 
 ## Correções de compatibilidade Linux
@@ -327,3 +330,10 @@ Este repositório não distribui arquivos do jogo, imagens vinculadas, dumps de 
 ### Monitoramento
 
 O MangoHud foi utilizado para observar FPS e frametime. Os resultados descritos neste documento correspondem ao ambiente de teste informado acima.
+
+O teste de 30 FPS pela GUI usou fullscreen, Neo, 5376 MiB, FSR1 e filtro 16x
+ativado na interface. Foram 124 amostras até 622 segundos, com média
+29,77 FPS e mínima 23,9 FPS. São amostras periódicas, não métricas de
+frametime. Confirmação humana de imagem/áudio/controles deste teste e teste
+do perfil de 60 FPS pela interface ainda pendentes. Logs preservados em
+out/validacao-launcher-linux/.

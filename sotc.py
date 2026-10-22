@@ -219,7 +219,7 @@ def main():
                *(['--sotc-cpu', str(cpu)] if cpu is not None else []),
                '--patches', str(modes_out / 'patches.bin'),
                *(['--sotc-cmdline', str(modes_out / 'cmdline.bin')] if (modes_out / 'cmdline.bin').is_file() else []),
-               '--app0', str(game), '--user', str(user), *sys.argv[1:]]
+               '--app0', str(game), '--user', str(user), '--timeout', '0', *sys.argv[1:]]
     # SOTC_WRAP: a JSON list put in front of the game, e.g. RenderDoc
     # ["C:/Program Files/RenderDoc/renderdoccmd.exe", "capture", "-w", "-c", "<file>"]; F12 then
     # captures the frame (SOTC_RDOC_SUBMITS submissions).

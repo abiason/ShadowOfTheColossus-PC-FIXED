@@ -50,9 +50,11 @@ is limited and Windows was not retested for this batch.
 **Interface gráfica Linux / Linux GUI (em desenvolvimento / in development):**
 `python3 launcher/sotc_launcher.py` — requer / requires Tk.
 [Configuração e perfis / Setup and profiles](docs/sotc/README-Linux-CachyOS-RDNA4.md#interface-gráfica-linux-em-desenvolvimento).
-A interface está em desenvolvimento após a release acima; o teste do jogo
-iniciado por ela ainda está pendente. / This launcher adaptation follows the
-source release above; launching the game through it still requires validation.
+A interface está em desenvolvimento após a release acima. O fluxo Jogar/Parar
+passou por teste de mais de dez minutos a 30 FPS; a confirmação audiovisual
+e o teste de 60 FPS pela GUI ainda estão pendentes. / This launcher adaptation
+follows the source release above. Play/Stop passed a ten-minute 30 FPS run;
+audiovisual confirmation and a 60 FPS GUI run remain pending.
 
 **Guia / Guide:** [Linux / CachyOS / AMD RDNA4](docs/sotc/README-Linux-CachyOS-RDNA4.md) ·
 [Registro técnico / Integration report](docs/sotc/INTEGRACAO-SHADPS4.md)
