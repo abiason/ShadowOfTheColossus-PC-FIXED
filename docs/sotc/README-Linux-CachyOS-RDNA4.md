@@ -32,7 +32,7 @@ env BB_PGO=off BB_LTO=OFF bash build.sh
 
 O executável será gerado em `out/bb-probe`.
 
-## Interface gráfica Linux (em desenvolvimento)
+## Interface gráfica Linux (experimental)
 
 A interface Tkinter do SotC é compartilhada com o Windows. Para abri-la:
 
@@ -334,6 +334,15 @@ O MangoHud foi utilizado para observar FPS e frametime. Os resultados descritos 
 O teste de 30 FPS pela GUI usou fullscreen, Neo, 5376 MiB, FSR1 e filtro 16x
 ativado na interface. Foram 124 amostras até 622 segundos, com média
 29,77 FPS e mínima 23,9 FPS. São amostras periódicas, não métricas de
-frametime. Confirmação humana de imagem/áudio/controles deste teste e teste
-do perfil de 60 FPS pela interface ainda pendentes. Logs preservados em
+frametime. O usuário confirmou imagem, áudio e controles normais e sincronizados
+nesse teste. Logs preservados em
 out/validacao-launcher-linux/.
+
+O teste do perfil experimental de 60 FPS pela interface também completou
+600 segundos e encerrou pelo botão Parar programado, com saída SIGTERM -15.
+Sem falha fatal ou perda do dispositivo Vulkan registrada; Jogar voltou
+a ficar habilitado e Parar desabilitado. Foram 119 amostras até 596 segundos,
+com média 52,27 FPS, mínima 28,8 e máxima 60,0 FPS. Mesmas opções
+de Neo/fullscreen/FSR1/filtro16x, acrescentando o patch fps60; vblank emulado
+permaneceu em 60 Hz. O usuário confirmou imagem, áudio e controles normais
+e sincronizados também nesse perfil. Não garante 60 FPS constantes.
