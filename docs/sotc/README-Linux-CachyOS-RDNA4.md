@@ -2,6 +2,19 @@
 
 Documentação experimental da adaptação Linux desenvolvida por abiason, baseada nos projetos de AjncSystem e xeodeo.
 
+## Release v0.59.1-linux.1
+
+[Notas completas](../releases/v0.59.1-linux.1.md) ·
+[Release no GitHub](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.1)
+
+Pré-release de código-fonte, sem binários, com a integração seletiva AjncSystem
+v0.59.1 e os backports shadPS4 validados neste fork. Nos testes finais de dez
+minutos, sem falha fatal registrada, a média das amostras foi 29,78 FPS no
+perfil 30 (mínima 24,5) e 49,96 FPS no perfil 60 experimental (mínima 28,5).
+O usuário confirmou imagem, áudio e controles normais. Não garante desempenho
+constante ou cobertura de todo o jogo. O ambiente testado preservava alterações
+locais do FSR excluídas da release; compilação limpa da tag ainda não revalidada.
+
 ## Ambiente testado
 - Sistema operacional: CachyOS Linux
 - Processador: AMD Ryzen 7 5700X
