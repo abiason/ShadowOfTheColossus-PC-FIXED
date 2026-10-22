@@ -316,3 +316,40 @@ st_gameflow no log. O usuário autorizou prosseguir sem fornecer avaliação
 visual e de áudio explícita desse teste.
 Um teste geral pode não cobrir crescimento, pressão de memória e todos os
 fallbacks; verificação com camada de validação Vulkan é desejável quando disponível.
+
+
+## Detecção de operações FP64: b08fd9bb
+
+Branch `integracao-shadps4-fp64-detection`. Adiciona os 38 casos upstream
+à coleta de `uses_fp64`, antes marcada apenas por PackDouble2x32 e
+UnpackDouble2x32. Todos os opcodes existem na IR local. Preserva diagnósticos
+locais de DMA e os outros casos do visitor. A flag controla os tipos e a
+capacidade Float64 no backend SPIR-V, além dos controles de ponto flutuante.
+A geração binária avança de 39 para 40 para evitar reutilizar shaders
+compilados com a detecção anterior; metadados permanecem na geração 23,
+pois não houve alteração de layout.
+
+Compilação incremental passou. O teste `tests/test_shader_info_fp64.cpp`
+chama o visitor real exportado por libbbgpu: falhou antes da correção
+(opcode FPAbs64 não detectado) e passou depois com 40 casos positivos e
+3 negativos (FPAdd32, FPMul32 e IAdd32). Cada caso usa Info independente,
+sem depender de um Pack/Unpack anterior. Comandos a partir da raiz:
+
+```sh
+c++ -std=c++23 -O2 -Igpu/shim -Igpu/shadps4 -Igpu/third_party/gcn/include -Igpu/third_party/magic_enum/include tests/test_shader_info_fp64.cpp -Lout/gpu -Wl,--export-dynamic -Wl,--allow-shlib-undefined -Wl,-rpath,"$PWD/out/gpu" -lbbgpu -lfmt -o out/validacao-shadps4-fp64/test-shader-info-fp64
+out/validacao-shadps4-fp64/test-shader-info-fp64
+```
+
+O teste fornece somente três variáveis de runtime exigidas ao carregar a
+biblioteca. Permite referências pendentes de serviços do loader, que não
+são chamados pelo visitor exercitado. Não valida o SPIR-V final nem prova
+que o jogo usa esses opcodes; não demonstra ganho de desempenho.
+`git diff --check` passou; hashes das alterações locais do FSR preservados.
+Logs em `out/validacao-shadps4-fp64/`. O teste controlado autorizado
+completou 600 segundos e encerrou pelo watchdog (saída 142), com 119
+amostras de FPS até 597 segundos. Sem falha fatal ou perda do dispositivo
+Vulkan registrada. Configuração: fullscreen, PS4 Pro, 5376 MiB, patch
+fps60, vblank emulado 60 Hz e cache separado, usando loader de diagnóstico
+preservado e a biblioteca GPU desta branch. Não houve marcadores st_gameflow
+no log. Não foi fornecida confirmação visual/áudio explícita. O resultado
+não comprova cobertura das operações FP64 no jogo.
