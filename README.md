@@ -26,6 +26,15 @@ Selective AjncSystem v0.59.1 and shadPS4 backports with the Linux/CachyOS and AM
 RDNA4 adaptations preserved. **Native distribution built in GitHub Actions.**
 The Windows launcher instructions below describe the inherited project.
 
+**Pacote publicado / Published package:** o tarball da v0.59.1-linux.3 foi
+testado por dez minutos em PS4 Pro, 30 FPS e fullscreen: 119 amostras,
+média 29,21 FPS, mínima 18,7 e máxima 30, sem falha fatal registrada.
+Imagem, áudio e controles confirmados; instalação e hashes preservados. /
+The published tarball passed a ten-minute PS4 Pro, 30 FPS fullscreen test:
+119 samples, mean 29.21 FPS, minimum 18.7, maximum 30; no logged fatal fault.
+Video, audio and controls confirmed; package files remained unchanged.
+The following 30/60 FPS results refer to earlier local GUI builds.
+
 - **Ambiente / Hardware:** CachyOS, Ryzen 7 5700X, Radeon RX 9060 XT 16 GB,
   32 GB RAM, Mesa RADV/Vulkan; CUSA08809.
 - **Validação / Validation:** dois testes pela interface de pelo menos dez minutos, sem falha fatal

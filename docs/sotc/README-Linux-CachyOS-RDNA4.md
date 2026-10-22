@@ -2,7 +2,21 @@
 
 Documentação experimental da adaptação Linux desenvolvida por abiason, baseada nos projetos de AjncSystem e xeodeo.
 
-## Release v0.59.1-linux.2
+## Release v0.59.1-linux.3
+
+[Notas completas](../releases/v0.59.1-linux.3.md) ·
+[Download no GitHub](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.3)
+
+Distribuição nativa gerada no GitHub Actions. O tarball publicado passou
+por teste de dez minutos em PS4 Pro, 30 FPS e fullscreen: 119 amostras até
+598 segundos, média 29,21 FPS, mínima 18,7 e máxima 30. Imagem, áudio e
+controles foram confirmados pelo usuário. Sem falha fatal registrada; parada
+programada por SIGTERM e Jogar disponível novamente. Os 40 arquivos verificados
+permaneceram íntegros, em instalação somente leitura com dados externos.
+O perfil experimental de 60 FPS foi testado anteriormente em builds locais,
+não no tarball publicado. Veja nas notas o commit e o hash do artefato testado.
+
+### Histórico: v0.59.1-linux.2
 
 [Notas completas](../releases/v0.59.1-linux.2.md) ·
 [Release no GitHub](https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.2)
