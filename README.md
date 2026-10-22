@@ -31,8 +31,14 @@ confirmados pelo usuário durante a execução. / The published AppImage complet
 a ten-minute PS4 Pro/30 FPS fullscreen run: 119 samples, mean 29.26 FPS,
 minimum 18.7, maximum 30; no logged fatal fault, scheduled stop and unchanged
 image hash. The user confirmed video, audio and controls during the run.
-Linux e 60 FPS seguem experimentais; 60 FPS ainda não testado neste AppImage. /
-Linux and 60 FPS remain experimental; this AppImage's 60 FPS mode is untested.
+O mesmo AppImage completou dez minutos com o patch experimental de 60 FPS:
+119 amostras, média 51,04 FPS, mínima 25,9, máxima 60; sem falha fatal,
+parada programada e hash intacto. Imagem, áudio e controles confirmados
+durante essa execução. / The same AppImage completed a ten-minute experimental
+60 FPS run: 119 samples, mean 51.04 FPS, minimum 25.9, maximum 60;
+no logged fatal fault, scheduled stop, unchanged hash; video, audio and
+controls confirmed during the run. Linux and 60 FPS remain experimental;
+it does not sustain 60 FPS. / Não mantém 60 FPS constantes.
 
 ## Histórico validado / Validated history — v0.59.1-linux.3
 

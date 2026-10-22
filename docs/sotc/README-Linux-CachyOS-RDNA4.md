@@ -19,8 +19,12 @@ média 29,26 FPS, mínima 18,7 e máxima 30. Sem falha fatal registrada; parada
 programada por SIGTERM, Jogar disponível novamente e hash preservado. O usuário
 confirmou imagem, áudio e controles durante a execução, antes do encerramento.
 O processo foi verificado dentro do mount do AppImage, com dados externos.
-Linux e 60 FPS seguem experimentais; 60 FPS neste AppImage e gameplay do
-tarball linux.4 ainda não testados separadamente. As sessões abaixo são da linux.3.
+O mesmo AppImage completou dez minutos com o patch de 60 FPS ativo, PS4 Pro,
+fullscreen e vblank 60 Hz: 119 amostras até 597 segundos, média 51,04 FPS,
+mínima 25,9, máxima 60; sem falha fatal, parada programada e hash intacto.
+Imagem, áudio e controles confirmados durante a execução, antes de terminar.
+Linux e 60 FPS seguem experimentais; o perfil não sustenta 60 FPS constantes.
+Gameplay do tarball linux.4 não foi testado separadamente. Abaixo, histórico da linux.3.
 
 ## Histórico validado: v0.59.1-linux.3
 
