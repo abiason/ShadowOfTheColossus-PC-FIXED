@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-23",
+  "timeout_seconds": 20,
+  "exit_code": 142,
+  "termination": "programmed SIGALRM watchdog",
+  "allocator_root_image_offset": "0x2dfca78",
+  "descriptor_offsets": [
+    "0x0",
+    "0xa0",
+    "0x140"
+  ],
+  "fields": {
+    "bitmap": "0x50",
+    "word_count_u32": "0x58",
+    "page_count_u64": "0x60"
+  },
+  "samples": [
+    "SOTC PAGE POOL 0 @0x1000000000: readable=1 status=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC PAGE POOL 1 @0x10000000a0: readable=1 status=valid pages_free=6874/86000",
+    "SOTC PAGE POOL 2 @0x1000000140: readable=1 status=valid pages_free=0/86000",
+    "SOTC PAGE POOL 0 @0x1000000000: readable=1 status=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC PAGE POOL 1 @0x10000000a0: readable=1 status=valid pages_free=6157/86000",
+    "SOTC PAGE POOL 2 @0x1000000140: readable=1 status=valid pages_free=127/86000",
+    "SOTC PAGE POOL 0 @0x1000000000: readable=1 status=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC PAGE POOL 1 @0x10000000a0: readable=1 status=valid pages_free=6157/86000",
+    "SOTC PAGE POOL 2 @0x1000000140: readable=1 status=valid pages_free=254/86000",
+    "SOTC PAGE POOL 0 @0x1000000000: readable=1 status=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC PAGE POOL 1 @0x10000000a0: readable=1 status=valid pages_free=6157/86000",
+    "SOTC PAGE POOL 2 @0x1000000140: readable=1 status=valid pages_free=254/86000"
+  ],
+  "fps_mean": 58.13,
+  "fatal_markers": [],
+  "note": "Read-only concurrent samples; no guarantee of atomic snapshot or diagnosis of crash cause."
+}

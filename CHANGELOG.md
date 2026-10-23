@@ -18,6 +18,8 @@
   com contagem de páginas e tratamento de ponteiros indisponíveis.
   Diagnóstico distingue o motivo de rejeição do pool e mostra campos
   candidatos; captura real encontrou layout incompatível, não falha de leitura.
+  Pools do alocador de páginas agora são lidos da estrutura própria, separada
+  dos heaps; bitmaps e contagens validados em execução, incluindo zero livre.
 - Launcher grava eventos de sessão em `user/events.log`, com rotação,
   configuração solicitada, início/fim, desempenho e erros; módulo incluído
   no pacote Linux e testado com processos simulados.

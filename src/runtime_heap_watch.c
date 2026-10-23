@@ -14,6 +14,48 @@ static uint64_t word64(const unsigned char *p) {
     return value;
 }
 
+/* Page allocator descriptors and heap objects are different structures.
+ * The EU 1.01 allocator at image+0x1a2f8 reads these descriptor fields. */
+static void sample_page_pool(const unsigned char *object, RuntimeHeapSample *sample,
+                             RuntimeHeapReader read, void *context) {
+    /* The upstream heap watcher reads a u32 word count at +0x58. Not every
+     * heap is a page pool; report counts only when all bounds and reads pass. */
+    uint32_t words;
+    memcpy(&words,object+0x58,sizeof(words));
+    const uint64_t bitmap=word64(object+0x50), pages=word64(object+0x60);
+    sample->candidate_bitmap=bitmap;
+    sample->candidate_pages=pages;
+    sample->candidate_words=words;
+    sample->pool_status="word-count-invalid";
+    if (!words || words>0x10000) return;
+    sample->pool_status="page-count-invalid";
+    if (!pages || pages>(uint64_t)words*64) return;
+    sample->pool_status="bitmap-address-invalid";
+    if (!bitmap || (bitmap&7) || bitmap>UINTPTR_MAX-(uint64_t)words*8) return;
+    sample->pool_status="bitmap-unreadable";
+    const uint64_t needed=(pages+63)/64;
+    uint64_t free_pages=0;
+    int valid=1;
+    for (uint64_t offset=0;offset<needed;) {
+        uint64_t chunk[512];
+        const size_t n=(size_t)(needed-offset<512 ? needed-offset : 512);
+        if (!read(context,(uintptr_t)(bitmap+offset*8),chunk,n*8)) { valid=0; break; }
+        for (size_t i=0;i<n;++i) {
+            const uint64_t remaining=pages-(offset+i)*64;
+            uint64_t bits=chunk[i];
+            if (remaining<64) bits&=(UINT64_C(1)<<remaining)-1;
+            free_pages+=(uint64_t)__builtin_popcountll(bits);
+        }
+        offset+=n;
+    }
+    if (valid) {
+        sample->pool_status="valid";
+        sample->pool_valid=1;
+        sample->pages=pages;
+        sample->free_pages=free_pages;
+    }
+}
+
 size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *context,
                               RuntimeHeapSample *samples, size_t capacity) {
     uint64_t heaps[SOTC_HEAP_SLOTS];
@@ -34,42 +76,28 @@ size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *con
         sample->class_address=word64(object);
         sample->base=word64(object+0x28);
         sample->bytes=word64(object+0x30);
-        /* The upstream heap watcher reads a u32 word count at +0x58. Not every
-         * heap is a page pool; report counts only when all bounds and reads pass. */
-        uint32_t words;
-        memcpy(&words,object+0x58,sizeof(words));
-        const uint64_t bitmap=word64(object+0x50), pages=word64(object+0x60);
-        sample->candidate_bitmap=bitmap;
-        sample->candidate_pages=pages;
-        sample->candidate_words=words;
-        sample->pool_status="word-count-invalid";
-        if (!words || words>0x10000) continue;
-        sample->pool_status="page-count-invalid";
-        if (!pages || pages>(uint64_t)words*64) continue;
-        sample->pool_status="bitmap-address-invalid";
-        if (!bitmap || (bitmap&7) || bitmap>UINTPTR_MAX-(uint64_t)words*8) continue;
-        sample->pool_status="bitmap-unreadable";
-        const uint64_t needed=(pages+63)/64;
-        uint64_t free_pages=0;
-        int valid=1;
-        for (uint64_t offset=0;offset<needed;) {
-            uint64_t chunk[512];
-            const size_t n=(size_t)(needed-offset<512 ? needed-offset : 512);
-            if (!read(context,(uintptr_t)(bitmap+offset*8),chunk,n*8)) { valid=0; break; }
-            for (size_t i=0;i<n;++i) {
-                const uint64_t remaining=pages-(offset+i)*64;
-                uint64_t bits=chunk[i];
-                if (remaining<64) bits&=(UINT64_C(1)<<remaining)-1;
-                free_pages+=(uint64_t)__builtin_popcountll(bits);
-            }
-            offset+=n;
-        }
-        if (valid) {
-            sample->pool_status="valid";
-            sample->pool_valid=1;
-            sample->pages=pages;
-            sample->free_pages=free_pages;
-        }
+        sample_page_pool(object,sample,read,context);
+    }
+    return count;
+}
+
+/* Initializer image+0x18c94 lays out three pool descriptors, stride 0xa0.
+ * The image global is a pointer, not an inline descriptor or heap table. */
+size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader read, void *context,
+                                   RuntimeHeapSample *samples, size_t capacity) {
+    uint64_t root=0;
+    if (!read || !samples || !capacity || root_pointer>UINTPTR_MAX-8 ||
+        !read(context,root_pointer,&root,sizeof(root)) || root<0x10000 ||
+        root>=(UINT64_C(1)<<40)-SOTC_PAGE_POOLS*0xa0 || (root&7)) return 0;
+    const size_t count=capacity<SOTC_PAGE_POOLS ? capacity : SOTC_PAGE_POOLS;
+    for (size_t i=0;i<count;++i) {
+        RuntimeHeapSample *sample=&samples[i];
+        *sample=(RuntimeHeapSample){.id=(unsigned)i,.address=(uintptr_t)(root+i*0xa0),
+                                    .pool_status="object-unreadable"};
+        unsigned char object[0x68];
+        if (!read(context,sample->address,object,sizeof(object))) continue;
+        sample->readable=1;
+        sample_page_pool(object,sample,read,context);
     }
     return count;
 }
@@ -145,6 +173,21 @@ static void *watch_main(void *unused) {
                          s->pool_status,s->candidate_bitmap,s->candidate_words,s->candidate_pages);
             fputc('\n',stderr);
         }
+        RuntimeHeapSample pools[SOTC_PAGE_POOLS];
+        const size_t pool_count=runtime_page_pool_inventory(watch.image+0x2dfca78,watch_read,
+                                                            &watch,pools,SOTC_PAGE_POOLS);
+        if (!pool_count) fprintf(stderr,"SOTC PAGE POOLS: root unavailable (concurrent snapshot)\n");
+        for (size_t i=0;i<pool_count;++i) {
+            const RuntimeHeapSample *s=&pools[i];
+            fprintf(stderr,"SOTC PAGE POOL %u @%#" PRIxPTR ": readable=%d status=%s",
+                    s->id,s->address,s->readable,s->pool_status);
+            if (s->pool_valid) fprintf(stderr," pages_free=%" PRIu64 "/%" PRIu64,
+                                      s->free_pages,s->pages);
+            else fprintf(stderr," candidate_bitmap=%#" PRIx64 " candidate_words=%" PRIu32
+                         " candidate_pages=%" PRIu64,s->candidate_bitmap,
+                         s->candidate_words,s->candidate_pages);
+            fputc('\n',stderr);
+        }
         funlockfile(stderr);
     }
     return NULL;
@@ -154,10 +197,13 @@ int runtime_heap_watch_start(uintptr_t image, uint64_t image_size) {
     const char *enabled=getenv("SOTC_HEAP_WATCH");
     if (!enabled || strcmp(enabled,"1")) return 0;
     static const unsigned char expected[]={0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56};
-    unsigned char actual[sizeof(expected)];
-    if (!image || image_size<0x2dfaab0+SOTC_HEAP_SLOTS*8 ||
+    static const unsigned char allocator_expected[]={0x41,0x8b,0x56,0x58,0x4d,0x8b,0x4e,0x50};
+    unsigned char actual[sizeof(expected)], allocator_actual[sizeof(allocator_expected)];
+    if (!image || image_size<0x2dfca78+8 ||
         image_size>UINTPTR_MAX-image || !host_read(image+0x495e0,actual,sizeof(actual)) ||
-        memcmp(actual,expected,sizeof(expected))) {
+        memcmp(actual,expected,sizeof(expected)) ||
+        !host_read(image+0x1a2f8,allocator_actual,sizeof(allocator_actual)) ||
+        memcmp(allocator_actual,allocator_expected,sizeof(allocator_expected))) {
         fprintf(stderr,"SOTC HEAPS: image unavailable or unsupported; watcher not started\n");
         return 0;
     }

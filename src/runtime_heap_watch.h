@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum { SOTC_HEAP_SLOTS = 48 };
+enum { SOTC_HEAP_SLOTS = 48, SOTC_PAGE_POOLS = 3 };
 typedef int (*RuntimeHeapReader)(void *context, uintptr_t address, void *out, size_t size);
 typedef struct {
     unsigned id;
@@ -21,6 +21,9 @@ typedef struct {
  * interpreted as an empty pool. Concurrent samples are diagnostic, not atomic. */
 size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *context,
                               RuntimeHeapSample *samples, size_t capacity);
+/* EU 1.01 page allocator root (image+0x2dfca78), separate from heap objects. */
+size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader read, void *context,
+                                   RuntimeHeapSample *samples, size_t capacity);
 /* Linux: optional SOTC_HEAP_WATCH=1 monitor; disabled by default. */
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size);
 #endif

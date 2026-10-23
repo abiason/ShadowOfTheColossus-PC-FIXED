@@ -264,6 +264,33 @@ Os sete testes do inventário passaram fora do sandbox, incluindo o leitor
 real do kernel e verificações dos motivos/candidatos sem contagens parciais.
 Log local: `out/teste-gameplay-preview-atual/game-heap-diagnostics.log`.
 
+### Pools do alocador de páginas identificados
+
+A análise local das instruções EU 1.01 distingue a tabela de objetos de heaps
+(`image+0x2dfaab0`) do estado do alocador de páginas, apontado pelo global
+`image+0x2dfca78`. O inicializador em +0x18c94 e a seleção em +0x1a19f
+estabelecem três descritores em +0, +0xa0 e +0x140; a estrutura em +0x1e0
+é uma lista diferente e foi excluída após inspeção do inicializador.
+O caminho +0x1a2f8 lê bitmap em +0x50, palavras u32 em +0x58 e páginas
+em +0x60 do descritor. Ele procura bits ligados e limpa os bits alocados,
+confirmando que bit ligado significa página livre nesse caminho.
+
+O monitor passa a emitir `SOTC PAGE POOL` separadamente. A versão final
+confere também as instruções de leitura em +0x1a2f8 antes de iniciar.
+Em execução, os descritores 1 e 2 produziram contagens válidas em bitmaps
+de 86.000 páginas; o descritor 0 estava sem bitmap inicializado. Foram
+observadas contagens zero válidas no descritor 2 sem falha fatal nessa
+captura curta; não inferir causa de falha nem somar pools como se fossem
+reservas independentes. Amostras continuam concorrentes, sem snapshot atômico.
+
+Oito testes passaram fora do sandbox, incluindo o leitor real, limites de
+capacidade, raiz inválida, espaçamento e pools cheios/vazios. Loader final
+recompilado; captura final curta com parada programada. Evidência em
+`docs/validation/2026-10-23-page-pools.json`; logs completos locais em
+`out/teste-gameplay-preview-atual/game-page-pools*.log`.
+A descoberta das classes para a guarda de readback continua separada desse
+inventário e não foi alterada.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:
@@ -303,8 +330,9 @@ para validar a seleção e as faixas da guarda Linux.
    existente ainda pressupõe uma faixa contígua; não declarar a falha após
    os créditos corrigida por este lote.
    O inventário Linux leu objetos durante a sessão estendida, e o usuário
-   confirmou transição após os créditos normal. A interpretação dos pools
-   das classes observadas continua pendente (`page_pool=unavailable`).
+   confirmou transição após os créditos normal. Os pools do alocador foram
+   identificados em estrutura separada; a seleção das classes para a guarda
+   Linux continua pendente.
 2. **Validação dos novos 60 FPS e atomics:** o preview completou dez minutos
    em cada perfil, com imagem, áudio e controles confirmados; no perfil 60,
    o usuário também confirmou velocidade normal dos movimentos. Na sessão
