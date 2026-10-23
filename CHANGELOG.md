@@ -1,5 +1,23 @@
 # Changelog
 
+## Em desenvolvimento — estabilidade AjncSystem 0.60
+
+- Readbacks especulativos de regiões antigas desativados por padrão para
+  evitar sobrescrever memória reutilizada pelo jogo.
+- Proteção do pool de texturas com histerese, quando os relatórios de alta
+  qualidade estão habilitados; validação de bitmap e testes sem GPU.
+- Launcher usa o alvo interno de 60 FPS (`fps60game`), com conferência dos
+  bytes originais em cada instrução. Desbloqueio antigo continua explícito.
+- Fallback de atomics float min/max executa uma única escrita por chamada;
+  SPIR-V validado e cache binário de shaders incrementado de 40 para 41.
+- Inventário de heaps Linux opcional (`SOTC_HEAP_WATCH=1`), somente leitura,
+  com contagem de páginas e tratamento de ponteiros indisponíveis.
+- Launcher grava eventos de sessão em `user/events.log`, com rotação,
+  configuração solicitada, início/fim, desempenho e erros; módulo incluído
+  no pacote Linux e testado com processos simulados.
+- Build e testes locais aprovados; gameplay ainda não validado neste lote.
+- Escopo e pendências: [integração seletiva](docs/sotc/INTEGRACAO-AJNC-V060.md).
+
 ## 0.59.1-linux.4 — 2026-10-22 (AppImage/Latest)
 
 - Distribuição em tar.gz nativo e AppImage CachyOS x86_64/glibc 2.43.

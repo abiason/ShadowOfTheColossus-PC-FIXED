@@ -72,7 +72,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_sotc_*.py' -v
           bash -n build.sh
-          python3 -m py_compile sotc.py launcher/sotc_launcher.py launcher/sotc_launcher_win.py
+          python3 -m py_compile sotc.py launcher/sotc_launcher.py launcher/sotc_launcher_win.py launcher/sotc_events.py
       - name: Build native loader and GPU
         run: |
           export CMAKE_INCLUDE_PATH="$PWD/out/dependencies/vma"

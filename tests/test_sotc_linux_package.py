@@ -2,7 +2,10 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -66,6 +69,27 @@ class PackageTests(unittest.TestCase):
             self.assertFalse(manifest['private_preview_only'])
         self.assertNotEqual(archive, pkg.package(self.root, archive.parent))
         self.assertTrue(archive.is_file())
+
+    def test_packaged_launcher_imports_its_event_module_without_checkout_paths(self):
+        names = ('sotc_launcher.py', 'sotc_launcher_win.py', 'sotc_events.py')
+        source = Path(__file__).resolve().parents[1] / 'launcher'
+        for name in names:
+            (self.root / 'launcher' / name).write_bytes((source / name).read_bytes())
+        archive = pkg.package(self.root)
+        extracted = self.root / 'extracted-launcher'
+        extracted.mkdir()
+        with tarfile.open(archive) as tar:
+            for name in names:
+                member = next(m for m in tar.getmembers() if m.name.endswith('/launcher/' + name))
+                (extracted / name).write_bytes(tar.extractfile(member).read())
+        result = subprocess.run([sys.executable, '-I', '-c',
+                                 'import sys; sys.path.insert(0, sys.argv[1]); '
+                                 'import sotc_launcher; from sotc_launcher_win import SessionEvents; '
+                                 'print(SessionEvents.__module__)', str(extracted)],
+                                env={**os.environ, 'HOME': str(self.root)}, capture_output=True,
+                                text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip(), 'sotc_events')
 
     def test_dirty_fsr_explicit_preview(self):
         self.dirty = ' M src/fsr.c'

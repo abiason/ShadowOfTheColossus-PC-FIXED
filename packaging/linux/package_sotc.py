@@ -22,7 +22,7 @@ FILES = {
     'out/gpu/libbbgpu.so': 'bin/gpu/libbbgpu.so',
     **{f'launcher/{n}': f'launcher/{n}' for n in (
         'sotc_launcher.py', 'sotc_launcher_win.py', 'sotc_lang_es.py',
-        'sotc_discovery.py', 'button_icons.py')},
+        'sotc_discovery.py', 'sotc_events.py', 'button_icons.py')},
     **{f'scripts/{n}.py': f'scripts/{n}.py' for n in (
         'prepare', 'link_libc', 'link_modules', 'content_profile', 'sotc_cpu',
         'sotc_modes', 'sotc_cache')},
@@ -36,6 +36,7 @@ LICENSES = ('gpu/shadps4/LICENSE', 'gpu/third_party/imgui/LICENSE.txt',
             'gpu/third_party/sirit/externals/SPIRV-Headers/LICENSE',
             'gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt')
 OPTIONAL = ('packaging/linux/README.md', 'docs/sotc/README-Linux-CachyOS-RDNA4.md',
+            'docs/sotc/INTEGRACAO-AJNC-V060.md',
             'docs/releases/v0.59.1-linux.2.md', 'docs/releases/v0.59.1-linux.3.md',
             'docs/releases/v0.59.1-linux.4.md', 'launcher/sotc.png', 'launcher/sotc.ico')
 WRAPPER = '''#!/bin/sh

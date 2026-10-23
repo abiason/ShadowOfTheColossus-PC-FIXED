@@ -18,13 +18,60 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <iterator>
 #include "common/types.h"
+
+extern "C" const unsigned char* runtime_memory_backing_pointer(uintptr_t address);
 
 namespace SotcLod {
 
 inline std::atomic<u32> uses[256]{};
+
+// EU 1.01's 64 KiB streaming-page pool. Read its bitmap through the backing view,
+// bypassing GPU tracking protection. An unavailable or invalid pool must not change LOD.
+// Adapted from AjncSystem's 0.60.3/0.60.4 pressure protection, PR #191.
+inline int PoolFreePercent() {
+    constexpr uintptr_t Pool = 0x1000000140;
+    const auto view = [](uintptr_t address, u64 size) -> const u8* {
+        if (!size || address > UINTPTR_MAX - (size - 1)) {
+            return nullptr;
+        }
+        const u8* first = runtime_memory_backing_pointer(address);
+        const u8* last = first ? runtime_memory_backing_pointer(address + size - 1) : nullptr;
+        return first && last && reinterpret_cast<uintptr_t>(last) -
+                                   reinterpret_cast<uintptr_t>(first) == size - 1
+                   ? first : nullptr;
+    };
+    const u8* pool = view(Pool, 0x68);
+    if (!pool) {
+        return -1;
+    }
+    u64 bitmap, words, pages;
+    std::memcpy(&bitmap, pool + 0x50, 8);
+    std::memcpy(&words, pool + 0x58, 8);
+    std::memcpy(&pages, pool + 0x60, 8);
+    if (!words || words > 0x10000 || !pages || pages > words * 64) {
+        return -1;
+    }
+    const u8* bits = view(bitmap, words * 8);
+    if (!bits) {
+        return -1;
+    }
+    u64 free = 0;
+    for (u64 i = 0; i < (pages + 63) / 64; ++i) {
+        u64 word;
+        std::memcpy(&word, bits + i * 8, 8);
+        if (const u64 remaining = pages - i * 64; remaining < 64) {
+            word &= (u64{1} << remaining) - 1;
+        }
+        free += std::popcount(word);
+    }
+    return static_cast<int>(free * 100 / pages);
+}
 /// Reports a bank stays sampled after its last use. 0, like Pink-shadPS4: only the banks used
 /// since the last report. 180 (about 3 s) made the game ask for more than its streaming pool holds
 /// (allocator fault at guest 0x1a371 in 1 of 3 runs of the attract demo; 0 of 5 without).
@@ -49,6 +96,35 @@ inline void Collect(u64 (&entries)[256]) {
         const char* v = std::getenv("SOTC_LOD_LEVEL");
         return v ? std::strtoull(v, nullptr, 0) & 0xf : 2;
     }();
+    static const int pool_low = [] {
+        const char* v = std::getenv("SOTC_LOD_POOL_LOW");
+        return v ? std::clamp(std::atoi(v), 0, 100) : 8;
+    }();
+    static u64 coarser = 0;
+    static u32 reports = 0;
+    if (linger && pool_low > 0 && reports++ % 30 == 0) {
+        const int free = PoolFreePercent();
+        u64 want = coarser;
+        if (free >= 0) {
+            if (free < pool_low * 3 / 8) {
+                want = 2;
+            } else if (free < pool_low) {
+                want = std::max<u64>(coarser, 1);
+            } else if (coarser == 2 && free > pool_low * 3 / 4) {
+                want = 1;
+            }
+            // Hysteresis from 0.60.4: only return to the finest mip above 16% free.
+            if (want == 1 && coarser == 1 && free > pool_low * 2) {
+                want = 0;
+            }
+        }
+        if (want != coarser) {
+            coarser = want;
+            std::fprintf(stderr, "SOTC LOD: game page pool %d%% free, sampled textures ask for mip %u\n",
+                         free, static_cast<unsigned>(std::min<u64>(level + coarser, 14)));
+        }
+    }
+    const u64 mip = std::min<u64>(level + coarser, 14);
     static u32 idle[256] = {}; // reports since the bank's last use (never used: all ones)
     static const bool idle_ready = [] {
         std::fill(std::begin(idle), std::end(idle), 0xffffffffu);
@@ -68,7 +144,7 @@ inline void Collect(u64 (&entries)[256]) {
         // drop their fine mips. SOTC_LOD_KEEP=1 reports them as sampled with no samples instead
         // (what the zeroed buffer said before; not soak-tested with the streaming).
         static const bool keep = std::getenv("SOTC_LOD_KEEP") != nullptr;
-        entries[i] = idle[i] < linger ? (level << 56) | (u64{std::max<u32>(last_count[i], 1)} << 32)
+        entries[i] = idle[i] < linger ? (mip << 56) | (u64{std::max<u32>(last_count[i], 1)} << 32)
                      : keep           ? level << 56
                                       : u64{0xf} << 56;
     }

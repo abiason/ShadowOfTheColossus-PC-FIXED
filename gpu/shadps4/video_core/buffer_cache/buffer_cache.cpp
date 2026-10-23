@@ -826,11 +826,12 @@ u64 BufferCache::GatherDownloads(const Buffer* arena, VAddr device_addr, u64 siz
     // frame, one after another, so while the GPU is idle anyway also bring along the other
     // regions read back recently ("hot" readbacks) that the GPU has modified since. The reads
     // that follow then find their data already on the CPU instead of each needing a sync.
-    // SOTC_RB_HOT=0: off, 1: same arena and small regions only, 2 (default): any existing arena,
-    // any size. Mode 2 halves the readback syncs in SotC's open world (~+20% fps).
+    // Disabled by default: the game can reuse a previously read region for textures or heaps
+    // before these speculative copies arrive, overwriting fresh CPU data (upstream v0.60.6).
+    // SOTC_RB_HOT=0: off, 1: same arena and small regions only, 2: any existing arena/size.
     static const int hot_mode = [] {
         const char* v = std::getenv("SOTC_RB_HOT");
-        return v ? std::atoi(v) : 2;
+        return v ? std::atoi(v) : 0;
     }();
     const bool hot_enabled = hot_mode != 0 && hot_extras;
     const auto now = std::chrono::steady_clock::now();

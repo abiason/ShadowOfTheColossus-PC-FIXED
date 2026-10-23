@@ -25,6 +25,7 @@ import subprocess
 import sys
 import threading
 import time
+from sotc_events import SessionEvents
 
 FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
@@ -379,7 +380,8 @@ def game_environment(s):
         env['SOTC_SYS_MODULES'] = s['sys_modules']
     if s.get('dlc_dir'):
         env['SOTC_DLC_DIR'] = s['dlc_dir']
-    env['SOTC_MODES'] = ','.join(m for m in ('af16', 'fps60') if s.get(m))
+    env['SOTC_MODES'] = ','.join(mode for key, mode in (('af16', 'af16'), ('fps60', 'fps60game'))
+                                 if s.get(key))
     env['BB_FULLSCREEN'] = '1' if s['fullscreen'] else '0'
     env['BB_PRESENT_MODE'] = s['present_mode']
     if s['language']:
@@ -474,6 +476,7 @@ class Launcher:
         self.app = {**APP_DEFAULTS, **load_json(CONFIG_FILE, {})}
         self.vars = {}
         self.process = self.job = None
+        self.session_events = None
         self.stopping = False
         self.output = queue.Queue()
         self.ui_calls = queue.Queue()
@@ -1705,22 +1708,28 @@ class Launcher:
             self.show('game')
             return
         self.set_log('')
+        events = SessionEvents(user_dir(self.app), self.app, VERSION)
         try:
             write_key_bindings(self.app.get('keys'), self.app.get('pads'))
         except OSError as error:
             self.append(_('Não foi possível gravar as teclas no sotc.ini: {}',
                           'Could not write the keys to sotc.ini: {}').format(error) + '\n')
         try:
-            self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(self.app),
+            environment = game_environment(self.app)
+            events.configuration(environment)
+            self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=environment,
                                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                             stderr=subprocess.STDOUT, creationflags=NO_WINDOW,
                                             start_new_session=not IS_WINDOWS)
         except (OSError, ValueError) as error:
+            events.launch_failed(error)
             self.append(_('Não foi possível iniciar: {}', 'Could not start: {}').format(error) + '\n')
             self.process = None
             return
+        events.process_started(self.process.pid)
+        self.session_events = events
         self.job = GameJob(self.process)
-        threading.Thread(target=self.read_output, args=(self.process,), daemon=True).start()
+        threading.Thread(target=self.read_output, args=(self.process, events), daemon=True).start()
         self.play_button.configure(state='disabled')
         self.stop_button.configure(state='normal')
         self.status.configure(text=_('Preparando o jogo; ele abre na própria janela…',
@@ -1728,22 +1737,27 @@ class Launcher:
         if self.app.get('close_on_play'):
             self.root.after(5000, self.root.destroy)
 
-    def read_output(self, process):
+    def read_output(self, process, events=None):
         # The output also goes to user/last_run.log, so a crash can be looked at afterwards.
         log_dir = user_dir(self.app)
         try:
             log = open_session_log(log_dir)
         except OSError:
             log = None
-        for raw in iter(process.stdout.readline, b''):
-            text = raw.decode('utf-8', errors='replace')
-            self.output.put(text)
-            if log:
-                try:
-                    log.write(text)
-                except (OSError, ValueError):
-                    pass
+        with process.stdout:
+            for raw in iter(process.stdout.readline, b''):
+                text = raw.decode('utf-8', errors='replace')
+                if events:
+                    events.observe(text)
+                self.output.put(text)
+                if log:
+                    try:
+                        log.write(text)
+                    except (OSError, ValueError):
+                        pass
         code = process.wait()
+        if events:
+            events.finish(code, stopped=self.stopping)
         if log:
             try:
                 log.write(f'[exit code {code} = {code & 0xffffffff:#x}]\n')
@@ -1753,6 +1767,7 @@ class Launcher:
             if not self.stopping:
                 keep_crash_log(log_dir, code)
         self.stopping = False
+        self.session_events = None
         self.output.put((code,))
 
     def drain_output(self):
@@ -1778,6 +1793,8 @@ class Launcher:
 
     def stop(self):
         if self.job:
+            if getattr(self, 'session_events', None) and not self.stopping:
+                self.session_events.emit('stop_requested')
             self.stopping = True  # stopped from the launcher: not a crash
             self.job.terminate()
 
@@ -1929,20 +1946,39 @@ def play_without_window(settings):
         write_key_bindings(settings.get('keys'), settings.get('pads'))
     except OSError:
         pass
-    with open_session_log(log_dir) as log:
-        process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
-                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT, creationflags=NO_WINDOW,
-                                            start_new_session=False)
-        for raw in iter(process.stdout.readline, b''):
-            text = raw.decode('utf-8', errors='replace')
-            log.write(text)
-            try:
-                sys.stdout.write(text)
-            except (OSError, ValueError):
-                pass
-        code = process.wait()
-        log.write(f'[exit code {code} = {code & 0xffffffff:#x}]\n')
+    events = SessionEvents(log_dir, settings, VERSION)
+    try:
+        environment = game_environment(settings)
+        events.configuration(environment)
+        with open_session_log(log_dir) as log:
+            process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=environment,
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT, creationflags=NO_WINDOW,
+                                       start_new_session=False)
+            events.process_started(process.pid)
+            with process.stdout:
+                for raw in iter(process.stdout.readline, b''):
+                    text = raw.decode('utf-8', errors='replace')
+                    events.observe(text)
+                    log.write(text)
+                    try:
+                        sys.stdout.write(text)
+                    except (OSError, ValueError):
+                        pass
+            code = process.wait()
+            events.finish(code)
+            log.write(f'[exit code {code} = {code & 0xffffffff:#x}]\n')
+    except (OSError, ValueError) as error:
+        if events.pid is None:
+            events.launch_failed(error)
+        else:
+            events.emit('launcher_error', message=str(error)[:1024])
+        raise
+    except BaseException as error:
+        events.emit('launcher_interrupted', kind=type(error).__name__)
+        raise
+    finally:
+        events.close()
     keep_crash_log(log_dir, code)
     return code
 

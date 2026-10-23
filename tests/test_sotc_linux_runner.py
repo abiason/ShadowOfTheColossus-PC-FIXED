@@ -75,6 +75,13 @@ class LinuxRunnerTests(unittest.TestCase):
         _, env, _ = self.run_prepared(SOTC_MODES='fps60', BB_FPS_LIMIT='45', BB_VBLANK_HZ='90')
         self.assertEqual((env['BB_FPS_LIMIT'], env['BB_VBLANK_HZ']), ('45', '90'))
 
+    def test_engine_fps60_defaults_and_explicit_overrides(self):
+        _, env, calls = self.run_prepared(SOTC_MODES='fps60game')
+        self.assertEqual((env['BB_FPS_LIMIT'], env['BB_VBLANK_HZ']), ('60', '60'))
+        self.assertIn('fps60game', calls[0][1])
+        _, env, _ = self.run_prepared(SOTC_MODES='fps60game', BB_FPS_LIMIT='45', BB_VBLANK_HZ='90')
+        self.assertEqual((env['BB_FPS_LIMIT'], env['BB_VBLANK_HZ']), ('45', '90'))
+
     def test_automatic_preparation_never_overwrites_manual_images(self):
         out = self.root / 'out'
         out.mkdir()
@@ -173,6 +180,17 @@ class LinuxRunnerTests(unittest.TestCase):
             env = {}
             runner.apply_timing_defaults(env, '')
             self.assertEqual(env, {})
+
+    def test_windows_engine_target_uses_sixty_hz(self):
+        with patch.object(runner.os, 'name', 'nt'):
+            env = {}
+            runner.apply_timing_defaults(env, 'af16, FPS60GAME')
+            self.assertEqual(env, {'BB_VBLANK_HZ': '60', 'BB_FPS_LIMIT': '60'})
+            runner.apply_timing_defaults(env, 'fps60')
+            self.assertEqual(env, {'BB_VBLANK_HZ': '60', 'BB_FPS_LIMIT': '60'})
+            env = {'BB_VBLANK_HZ': '90', 'BB_FPS_LIMIT': '45'}
+            runner.apply_timing_defaults(env, 'fps60game')
+            self.assertEqual(env, {'BB_VBLANK_HZ': '90', 'BB_FPS_LIMIT': '45'})
 
     def test_optional_cpu_profile(self):
         cpu = self.root / 'cpu.bin'

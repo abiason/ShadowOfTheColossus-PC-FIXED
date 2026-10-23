@@ -18,7 +18,8 @@ Settings (environment variables, or sotc.ini beside this script as NAME=value li
     SOTC_DLC_DIR      optional: the game's DLC (one folder per add-on with sce_sys/param.sfo,
                       or shadPS4's addcont folder holding CUSA08809)
     SOTC_MODES        optional, comma-separated: af16 (16x anisotropic filtering),
-                      fps60 (experimental; emulated vblank 60 Hz on Linux, 120 Hz on Windows)
+                      fps60game (experimental engine 60 FPS target, vblank 60 Hz),
+                      fps60 (legacy unlock; vblank 60 Hz on Linux, 120 Hz on Windows)
     SOTC_CVARS        engine settings, NAME=VALUE separated by spaces (e.g. r_motionBlurEnable=0)
     BB_GAMEPAD        the gamepad to use (its name or part of it), when several are connected
     key.<input>=Keys, pad.<input>=buttons   remap the controls (README.md, Controles)
@@ -135,9 +136,13 @@ def merged_source(game, update, out):
 
 def apply_timing_defaults(env, modes):
     """Emulated timing defaults; explicit user settings take precedence."""
-    fps60 = 'fps60' in {mode.strip().lower() for mode in modes.split(',')}
+    selected = {mode.strip().lower() for mode in modes.split(',')}
+    fps60 = bool(selected & {'fps60', 'fps60game'})
     if fps60:
-        env.setdefault('BB_VBLANK_HZ', '120' if os.name == 'nt' else '60')
+        env.setdefault('BB_VBLANK_HZ', '120' if os.name == 'nt' and 'fps60game' not in selected else '60')
+    if 'fps60game' in selected:
+        # At 60 Hz the GPU shim otherwise defaults to a 30 FPS host cap.
+        env.setdefault('BB_FPS_LIMIT', '60')
     if os.name != 'nt':
         env.setdefault('BB_FPS_LIMIT', '60' if fps60 else '30')
         env.setdefault('BB_VBLANK_HZ', '60')

@@ -48,8 +48,10 @@ Tudo isto está no lançador, na página **Imagem e FPS** (e os principais em **
 - **Saída** 720p, 1080p, 1440p ou 4K. O jogo renderiza em 1080p, como no PS4, e a imagem é
   ampliada para a saída com **FSR 1** + nitidez (RCAS) ou bilinear. A janela nunca passa de 90%
   da tela; a tela cheia usa o monitor inteiro.
-- **60 FPS** (experimental): tira o limite de 30 FPS do jogo (patch GoldHEN de illusion), com
-  vblank a 120 Hz. Mediu 38 FPS no campo aberto e ~25 no templo.
+- **60 FPS** (experimental): o lançador usa `fps60game`, que seleciona o alvo de
+  60 FPS do próprio motor, com vblank a 60 Hz e limite de apresentação de 60 FPS.
+  A física ainda precisa de validação neste fork. O desbloqueio antigo permanece
+  disponível explicitamente com `SOTC_MODES=fps60`; não combine os dois modos.
 - **Texturas nítidas**: filtro anisotrópico 16x, quase sem custo.
 - **Modo PS4 Pro**: o jogo se vê num PS4 Pro e oferece no próprio menu (Opções > Apresentação)
   o Modo Grafismo **Cinematográfico** (1440p, mais detalhe) ou **Desempenho**. É mais pesado:
@@ -127,6 +129,10 @@ normal o jogo roda travado em 30 FPS, como no PS4.
   o marcador de espera e o gravador de comandos Vulkan em thread própria (`cp_record_thread`).
 
 ## Diagnóstico
+
+O launcher registra eventos de sessão em `user/events.log` (JSON por linha),
+com opções solicitadas, início/fim, desempenho e erros. Mantém até três
+arquivos de 2 MiB. A saída completa continua em `user/last_run.log`.
 
 Estas variáveis de ambiente ajudam a investigar problemas:
 

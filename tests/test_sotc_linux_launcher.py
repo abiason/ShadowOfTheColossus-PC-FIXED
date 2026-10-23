@@ -57,7 +57,8 @@ class LinuxLauncherTests(unittest.TestCase):
                                        'BB_DIRECT_MEMORY_ACCESS': '0', 'SOTC_RB_ASYNC': '0',
                                        'SOTC_NEO': '1', 'BB_DMEM_MB': '5376'}.items():
                         self.assertEqual(env[key], value, key)
-                    self.assertEqual('fps60' in env['SOTC_MODES'].split(','), fps60)
+                    self.assertEqual('fps60game' in env['SOTC_MODES'].split(','), fps60)
+                    self.assertNotIn('fps60', env['SOTC_MODES'].split(','))
 
     def test_prepared_paths_with_spaces_and_stale_environment(self):
         keys = {'prepared_boot': 'SOTC_BOOT_IMAGE', 'prepared_content': 'SOTC_CONTENT_PROFILE',
