@@ -15,6 +15,9 @@
 - Launcher grava eventos de sessão em `user/events.log`, com rotação,
   configuração solicitada, início/fim, desempenho e erros; módulo incluído
   no pacote Linux e testado com processos simulados.
+- Processador de comandos cede a CPU após uma rodada completa sem progresso
+  nas filas; `SOTC_CP_YIELD=0` restaura o polling anterior. Testes reais de
+  corrotinas PM4 sem GPU, incluindo execução em um único núcleo.
 - Build e testes locais aprovados; gameplay ainda não validado neste lote.
 - Escopo e pendências: [integração seletiva](docs/sotc/INTEGRACAO-AJNC-V060.md).
 

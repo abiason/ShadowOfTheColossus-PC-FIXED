@@ -77,6 +77,7 @@ class SessionEventTests(unittest.TestCase):
         events.observe('st_gameflow() starting game')
         events.observe("Runtime: save data 'slot0' mounted at /savedata0 (existing, read-only)")
         events.observe('SOTC HEAPS: image unavailable or unsupported; watcher not started')
+        events.observe('SOTC command processor: idle yield on')
         for _ in range(110):
             events.observe('Guest fault (signal 11) at guest offset 0x49500')
         events.finish(139)
@@ -86,6 +87,7 @@ class SessionEventTests(unittest.TestCase):
         self.assertIn('shader_preload', {item['event'] for item in data})
         self.assertIn('load_started', {item['event'] for item in data})
         self.assertTrue(next(item for item in data if item['event'] == 'save_mounted')['read_only'])
+        self.assertTrue(any(item.get('message') == 'SOTC command processor: idle yield on' for item in data))
         self.assertEqual(data[-1]['outcome'], 'failed')
 
     def test_rotation_preserves_complete_utf8_records_with_bounded_files(self):

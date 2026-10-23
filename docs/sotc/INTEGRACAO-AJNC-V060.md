@@ -61,6 +61,16 @@ Branch de trabalho: `integracao-ajnc-v0.60-estabilidade`.
   esse journal não impede iniciar o processo. `last_run.log` e cópias de
   crash continuam existentes. O novo módulo e estas notas entram no pacote
   Linux; a CI também verifica a sintaxe do módulo.
+- Esperas cooperativas do processador de comandos: depois de uma rodada
+  completa pelas filas mapeadas sem pacote novo, callback ou submissão
+  concluída, chama `std::this_thread::yield()`. Pacotes CE, gráficos e compute
+  e callbacks são registrados como progresso por um contador local à thread,
+  sem operação atômica por pacote. Evita manter o polling contínuo quando
+  as corrotinas só aguardam um registro/fence. `SOTC_CP_YIELD=0` restaura o
+  comportamento anterior; o estado é emitido no log e capturado no journal.
+  Adaptação local da política descrita na PR #198; o diff completo da PR
+  não pôde ser obtido. O timeout de 2 ms do recorder Windows já existia
+  localmente; o recorder não foi alterado neste lote.
 
 Fontes consultadas:
 
@@ -81,6 +91,9 @@ Fontes consultadas:
   consultada para comparar com a arquitetura de warm-up já presente localmente.
 - [Commit 568547d8](https://github.com/AjncSystem/ShadowOfTheColossus-PC/commit/568547d8bcb0a22e8ee825b76c00c4e96d68d0a2):
   consultado pelo Git local; tabela de 48 heaps e campos do inventário.
+- [PR #198](https://github.com/AjncSystem/ShadowOfTheColossus-PC/pull/198):
+  política de espera para CPUs com poucos threads, adaptada à arquitetura
+  local de filas/corrotinas.
 
 O acesso Git a `ajnc` falhou por DNS (`Could not resolve host: github.com`).
 O código acima foi adaptado a partir das fontes acessíveis pelo navegador;
@@ -90,6 +103,10 @@ não é um cherry-pick nem uma atualização integral para a tag 0.60.6.
 
 - Build incremental de `bbgpu` e `atomic-float-shader-test`: sucesso.
   Configuração local existente: RelWithDebInfo, PGO off, LTO off.
+- Build de `sotc-cp-wait-test` e recompilação das unidades dependentes de
+  `Liverpool`: sucesso. Teste compila com asserts habilitados e warnings
+  como erros no código da fixture; os headers do renderer entram como
+  headers de sistema para não alterar avisos preexistentes do código importado.
 - Loader com o novo runtime recompilado em
   `out/validacao-ajnc-v060/bb-probe`; 14 testes do loader passaram contra
   esse binário, antes de atualizar `out/bb-probe`.
@@ -121,7 +138,18 @@ não é um cherry-pick nem uma atualização integral para a tag 0.60.6.
   inválida e armazenamento indisponível. Nenhum processo do jogo é aberto.
   Executados também com `ResourceWarning` tratado como erro; os pipes de
   saída agora são fechados após a leitura.
-- Suíte `test_sotc_*.py`: 95 testes, 94 aprovados e um skip explícito da
+- Cinco testes novos usam a thread e as corrotinas reais de `Liverpool`,
+  com PM4 `WAIT_REG_MEM` e NOPs: gráficos bloqueados, compute bloqueado com
+  fila gráfica vazia, retorno explícito ao polling, pacotes ativos sem
+  chamadas de yield e thread de comandos/callback compartilhando um único
+  núcleo por afinidade do processo de teste. Todos passaram. O teste
+  interpõe `sched_yield` para observar a chamada real da biblioteca e
+  libera as esperas por callbacks enviados ao próprio CP, sem acessar
+  registradores concorrentemente de fora da thread.
+  A CI executa esse grupo após compilar o binário, sem exigir dispositivo
+  Vulkan. O stub de `runtime_disabled_optimizations` foi alinhado ao tipo
+  real de 64 bits; os dois testes de atomics passaram novamente.
+- Suíte `test_sotc_*.py`: 100 testes, 99 aprovados e um skip explícito da
   leitura de memória pelo kernel. Os grupos de loader (14) e atomics (2)
   acima também passaram separadamente nos lotes anteriores.
 - `git diff --check`: sucesso.
@@ -140,10 +168,16 @@ python3 -m unittest discover -s tests -p 'test_atomic_float_shaders.py' -v
 python3 -m unittest discover -s tests -p 'test_sotc_heap_watch.py' -v
 python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_sotc_events.py' -v
 python3 -m unittest discover -s tests -p 'test_sotc_*.py' -v
+ninja -C out/gpu -j2 sotc-cp-wait-test
+python3 -m unittest discover -s tests -p 'test_sotc_cp_wait.py' -v
 ```
 
 Os logs locais estão em `out/validacao-ajnc-v060/`. A redução de FPS descrita
 na upstream não constitui medição deste fork.
+Os testes de espera cooperativa demonstram retomada, conclusão e chamadas
+ao escalonador nas fixtures; não medem ganho de FPS, consumo de CPU do jogo
+ou latência de frames em hardware real. Esperas internas que não retornam
+ao escalonador de corrotinas também não são resolvidas por essa política.
 
 ## Uso do inventário de heaps no Linux
 

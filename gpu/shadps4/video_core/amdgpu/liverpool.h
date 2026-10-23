@@ -267,6 +267,9 @@ private:
     u32 gpu_tid;
 #endif
     s32 curr_qid{-1};
+    // Only the command-processor thread updates this. Packet parsing, callbacks
+    // and completed submissions are progress; repeatedly resuming a wait is not.
+    u64 command_progress{};
 };
 
 } // namespace AmdGpu

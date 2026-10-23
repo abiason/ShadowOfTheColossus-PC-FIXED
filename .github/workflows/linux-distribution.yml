@@ -77,6 +77,10 @@ jobs:
         run: |
           export CMAKE_INCLUDE_PATH="$PWD/out/dependencies/vma"
           bash build.sh
+      - name: Check cooperative command-processor waits without a GPU
+        run: |
+          ninja -C out/gpu -j2 sotc-cp-wait-test
+          python3 -m unittest discover -s tests -p 'test_sotc_cp_wait.py' -v
       - name: Record build inputs and artifact hashes
         run: python3 packaging/linux/record_build.py
       - name: Package verified versioned patches

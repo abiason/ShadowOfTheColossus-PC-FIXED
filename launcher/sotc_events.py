@@ -16,7 +16,7 @@ KEPT = 3
 ENVIRONMENT = ('SOTC_MODES', 'BB_FPS_LIMIT', 'BB_VBLANK_HZ', 'BB_DMEM_MB',
                'SOTC_NEO', 'BB_DIRECT_MEMORY_ACCESS', 'BB_READBACKS', 'SOTC_RB_ASYNC',
                'SOTC_RB_HOT', 'SOTC_LOD_LINGER', 'SOTC_LOD_POOL_LOW', 'SOTC_HEAP_WATCH',
-               'SOTC_PARALLEL_WARMUP', 'SOTC_EOP_DEFER', 'SOTC_OUTPUT_RES',
+               'SOTC_PARALLEL_WARMUP', 'SOTC_CP_YIELD', 'SOTC_EOP_DEFER', 'SOTC_OUTPUT_RES',
                'BB_FSR1', 'BB_RCAS', 'BB_RCAS_ATTENUATION', 'SOTC_CVARS')
 SETTINGS = ('fps60', 'neo', 'fullscreen', 'output_res', 'upscaler', 'preset',
             'sharpness', 'af16', 'perf_dma', 'volume', 'mouse', 'mouse_sens')
@@ -144,7 +144,8 @@ class SessionEvents:
             self.emit('game_entry')
         elif text.startswith('SOTC pipeline cache:'):
             self.emit('shader_preload', message=text[:512])
-        elif text.startswith(('GPU:', 'VideoOut:', 'Upscaler:', 'SOTC HEAPS:', 'SOTC LOD:')):
+        elif text.startswith(('GPU:', 'VideoOut:', 'Upscaler:', 'SOTC HEAPS:', 'SOTC LOD:',
+                              'SOTC command processor:')):
             self.emit('runtime_status', message=text[:512])
         elif 'st_gameflow() starting game' in text:
             self.emit('load_started')

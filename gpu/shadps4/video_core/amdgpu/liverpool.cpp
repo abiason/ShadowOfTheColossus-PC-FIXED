@@ -4,6 +4,7 @@
 #include <atomic>
 #include <utility>
 #include <cstdlib>
+#include <cstdio>
 #include <boost/preprocessor/stringize.hpp>
 
 #include "common/assert.h"
@@ -148,6 +149,7 @@ void Liverpool::ProcessCommands() {
             --num_commands;
         }
         callback();
+        ++command_progress;
     }
 }
 
@@ -160,6 +162,13 @@ void Liverpool::Process(std::stop_token stoken) {
                                                      : Common::ThreadPriority::High);
     }
     gpu_id = std::this_thread::get_id();
+    // Adapted from the cooperative wait policy of AjncSystem PR #198. Give
+    // guest/recorder workers a turn only after a whole queue round did no work.
+    static const bool idle_yield = [] {
+        const char* v = std::getenv("SOTC_CP_YIELD");
+        return !v || v[0] != '0';
+    }();
+    std::fprintf(stderr, "SOTC command processor: idle yield %s\n", idle_yield ? "on" : "off");
 #ifdef __linux__
     gpu_tid = gettid();
 #endif
@@ -178,11 +187,20 @@ void Liverpool::Process(std::stop_token stoken) {
         VideoCore::StartCapture();
 
         curr_qid = -1;
+        u64 round_progress = command_progress;
+        bool have_round = false;
 
         while (num_submits || num_commands) {
             ProcessCommands();
 
             curr_qid = (curr_qid + 1) % num_mapped_queues;
+            if (curr_qid == 0) {
+                if (idle_yield && have_round && command_progress == round_progress) {
+                    std::this_thread::yield();
+                }
+                round_progress = command_progress;
+                have_round = true;
+            }
 
             auto& queue = mapped_queues[curr_qid];
 
@@ -197,6 +215,7 @@ void Liverpool::Process(std::stop_token stoken) {
             task.resume();
 
             if (task.done()) {
+                ++command_progress;
                 task.destroy();
 
                 std::scoped_lock lock{queue.m_access};
@@ -225,6 +244,7 @@ Liverpool::Task Liverpool::ProcessCeUpdate(std::span<const u32> ccb) {
     FIBER_ENTER(ccb_task_name);
 
     while (!ccb.empty()) {
+        ++command_progress;
         ProcessCommands();
 
         const auto* header = reinterpret_cast<const PM4Header*>(ccb.data());
@@ -312,6 +332,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
 
     const auto base_addr = reinterpret_cast<uintptr_t>(dcb.data());
     while (!dcb.empty()) {
+        ++command_progress;
         ProcessCommands();
 
         const auto* header = reinterpret_cast<const PM4Header*>(dcb.data());
@@ -1057,6 +1078,7 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
     auto base_addr = reinterpret_cast<VAddr>(acb.data());
     size_t acb_size = acb.size_bytes();
     while (!acb.empty()) {
+        ++command_progress;
         ProcessCommands();
 
         auto* header = reinterpret_cast<const PM4Header*>(acb.data());
