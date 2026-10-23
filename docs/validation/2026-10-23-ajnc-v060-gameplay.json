@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-23",
+  "preview": "SotC-PC-linux-x86_64-e7e679f64ad3-20ca024e9d9f",
+  "note": "Periodic FPS samples, not frame-time percentiles or controlled comparison. User reports apply to these sessions.",
+  "sessions": [
+    {
+      "profile_fps": 30,
+      "timeout_seconds": 600,
+      "exit_code": 142,
+      "termination": "programmed SIGALRM watchdog",
+      "samples": 119,
+      "last_sample_seconds": 597,
+      "fps_mean": 29.81,
+      "fps_min": 26.5,
+      "fps_max": 30.0,
+      "visual_audio_controls": "confirmed normal by user",
+      "log": "out/teste-gameplay-preview-atual/game-30fps-retomada.log",
+      "fatal_markers": []
+    },
+    {
+      "profile_fps": 60,
+      "mode": "fps60game",
+      "timeout_seconds": 600,
+      "exit_code": 142,
+      "termination": "programmed SIGALRM watchdog",
+      "samples": 119,
+      "last_sample_seconds": 596,
+      "fps_mean": 53.25,
+      "fps_min": 23.0,
+      "fps_max": 60.0,
+      "visual_audio_controls_timing": "confirmed normal by user",
+      "log": "out/teste-gameplay-preview-atual/game-60fps-retomada.log",
+      "fatal_markers": []
+    },
+    {
+      "profile_fps": 60,
+      "mode": "fps60game",
+      "timeout_seconds": 1800,
+      "exit_code": 142,
+      "termination": "programmed SIGALRM watchdog",
+      "samples": 358,
+      "last_sample_seconds": 1794,
+      "fps_mean": 49.87,
+      "fps_min": 20.1,
+      "fps_max": 60.0,
+      "last_minute_mean": 59.48,
+      "specific_gameplay_validation": {
+        "climbing_and_jumping_on_colossus": "confirmed normal by user",
+        "post_credits_transition": "confirmed normal by user"
+      },
+      "fatal_markers": [],
+      "original_saves_unchanged": true
+    }
+  ]
+}

@@ -171,8 +171,9 @@ não é um cherry-pick nem uma atualização integral para a tag 0.60.6.
   acima também passaram separadamente nos lotes anteriores.
 - `git diff --check`: sucesso.
 - `out/bb-gpu-capabilities`: saída 1, `GPU scene scaling: no Vulkan device`.
-  Sem validação de gameplay, artefatos visuais, áudio ou desempenho neste
-  ambiente. O build usa o estado local preexistente do submódulo FSR;
+  Sem validação de gameplay, artefatos visuais, áudio ou desempenho naquele
+  ambiente de build; o teste posterior em sessão gráfica está descrito abaixo.
+  O build usa o estado local preexistente do submódulo FSR;
   suas alterações não foram editadas nem incorporadas a este lote.
 
 Reprodução dos testes novos, sem jogo ou GPU:
@@ -196,6 +197,55 @@ ao escalonador nas fixtures; não medem ganho de FPS, consumo de CPU do jogo
 ou latência de frames em hardware real. Esperas internas que não retornam
 ao escalonador de corrotinas também não são resolvidas por essa política.
 
+## Validação do pacote preview em sessão gráfica — 2026-10-23
+
+Pacote `SotC-PC-linux-x86_64-e7e679f64ad3-20ca024e9d9f`, com hash
+verificado na preparação. Execução PS4 Pro, fullscreen, 5376 MiB de memória
+direta, `SOTC_EOP_DEFER=0`, `SOTC_RB_ASYNC=0`, dados de usuário isolados.
+
+- Perfil 30 FPS: 600 segundos, 119 amostras até 597 s; média 29,81 FPS,
+  mínima 26,5 e máxima 30. Imagem, áudio e controles confirmados pelo usuário.
+- Encerramento pelo watchdog solicitado (`--timeout 600`, SIGALRM, saída
+  142); o dump de threads ao final acompanha essa parada programada.
+  Sem assertion GPU, perda de dispositivo ou segfault registrado.
+- A tentativa anterior dentro do sandbox parou sem dispositivo de vídeo
+  SDL; a execução com acesso à sessão gráfica inicializou normalmente.
+- Resultado e log: `out/teste-gameplay-preview-atual/resultado-30fps-retomada.json`
+  e `game-30fps-retomada.log` no mesmo diretório.
+
+São amostras periódicas, sem comparação controlada de desempenho com a
+release anterior. Esta sessão não valida a transição após os créditos,
+a guarda de pool com alta qualidade habilitada ou o monitor de heaps.
+O perfil de 60 FPS usou `fps60game`, com os três patches de instrução
+e `TargetFramesPerSeconds=1` confirmada no log. Completou 600 segundos:
+119 amostras até 596 s, média 53,25 FPS, mínima 23 e máxima
+60. Encerramento programado por SIGALRM (142), sem os marcadores
+de falha fatal acima. O usuário confirmou imagem, áudio, controles e
+velocidade dos movimentos normais nesta sessão. Não houve confirmação
+específica de escalada e saltos nos colossos ou da transição após os créditos.
+O perfil não sustenta 60 FPS constantes; as duas sessões não
+foram uma comparação controlada do mesmo percurso. Resultado e log em
+`resultado-60fps-retomada.json` e `game-60fps-retomada.log`, no mesmo diretório.
+
+### Sessão estendida com cópias dos saves
+
+O mesmo preview completou 1800 segundos em `fps60game`, fullscreen,
+com `SOTC_HEAP_WATCH=1` e cópias dos três slots de progresso. Foram 358
+amostras até 1794 s: média 49,87 FPS, mínima 20,1 e máxima 60; média do
+último minuto 59,48 FPS. Encerramento programado por SIGALRM (142), sem
+assertion GPU, perda de dispositivo ou segfault registrado. Os hashes dos
+saves originais permaneceram iguais. O usuário confirmou funcionamento
+normal de escalada e saltos no colosso e da transição após os créditos
+nesta sessão. Essa confirmação registra
+o resultado observado; não prova ausência da falha em outros saves ou sessões.
+
+O monitor Linux iniciou e leu objetos de heaps durante gameplay; houve
+amostras com `readable=1` e `page_pool=unavailable`. Isso confirma acesso
+real aos objetos, mas não valida a interpretação do pool dessas classes
+nem a proteção contra esgotamento. Resultado e log locais:
+`out/teste-gameplay-preview-atual/resultado-colossos-final-60fps.json`
+e `game-colossos-final-60fps.log` no mesmo diretório.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:
@@ -214,9 +264,12 @@ GPU. `process_vm_readv(getpid(),...)` evita uma falha do host se o endereço
 desaparecer durante a amostra. Não há fallback para dereferência direta.
 Imagem indisponível ou prólogo inesperado recusa a inicialização; uma
 estrutura ou bitmap ilegível aparece como indisponível. A leitura da imagem
-também está sujeita à política do kernel: neste ambiente o monitor recusa
-iniciar, pois a chamada de leitura é negada. O teste com leitor real fica
-pendente para um ambiente que permita a operação.
+também está sujeita à política do kernel: no sandbox, o monitor recusa
+iniciar porque a chamada de leitura é negada. Na retomada em 2026-10-23,
+os sete testes de inventário passaram fora do sandbox, incluindo a integração
+com `process_vm_readv` real. Isso valida o leitor do kernel nesse contexto;
+a sessão estendida confirmou leitura dos objetos durante gameplay, mas
+a interpretação dos pools ainda precisa de validação.
 
 As amostras são concorrentes, não snapshots atômicos. Mesmo uma contagem
 válida de zero páginas não prova a causa de uma falha. O próximo dado útil é
@@ -231,10 +284,15 @@ para validar a seleção e as faixas da guarda Linux.
    obter o patch completo e implementar/testar a descoberta Linux. A guarda
    existente ainda pressupõe uma faixa contígua; não declarar a falha após
    os créditos corrigida por este lote.
-   O inventário Linux está implementado para coletar essa evidência, mas a
-   leitura real pelo kernel e os carregamentos do jogo seguem sem validação.
-2. **Validação dos novos 60 FPS e atomics:** código integrado, mas física nos
-   colossos, sincronismo, imagem e execução no driver ainda sem validação.
+   O inventário Linux leu objetos durante a sessão estendida, e o usuário
+   confirmou transição após os créditos normal. A interpretação dos pools
+   das classes observadas continua pendente (`page_pool=unavailable`).
+2. **Validação dos novos 60 FPS e atomics:** o preview completou dez minutos
+   em cada perfil, com imagem, áudio e controles confirmados; no perfil 60,
+   o usuário também confirmou velocidade normal dos movimentos. Na sessão
+   estendida, confirmou escalada e saltos no colosso e transição após os
+   créditos normais. A sessão não isola a execução do fallback de atomics
+   no driver.
    A primeira abertura pode recompilar shaders por causa do cache binário 41.
 3. **Pré-compilação paralela #215:** a análise inicial considerou apenas a
    criação dos workers usados durante gameplay após `WarmUp()`. A inspeção

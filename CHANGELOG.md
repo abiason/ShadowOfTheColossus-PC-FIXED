@@ -22,7 +22,19 @@
 - Processador de comandos cede a CPU após uma rodada completa sem progresso
   nas filas; `SOTC_CP_YIELD=0` restaura o polling anterior. Testes reais de
   corrotinas PM4 sem GPU, incluindo execução em um único núcleo.
-- Build e testes locais aprovados; gameplay ainda não validado neste lote.
+- Build e testes locais aprovados. Pacote preview `e7e679f6` validado por
+  dez minutos em PS4 Pro/30 FPS: 119 amostras, média 29,81 FPS, mínima
+  26,5 e máxima 30; imagem, áudio e controles confirmados pelo usuário.
+  Parada programada, sem falha fatal registrada.
+- Perfil `fps60game` do mesmo preview completou dez minutos: 119 amostras,
+  média 53,25 FPS, mínima 23 e máxima 60; parada programada,
+  sem falha fatal registrada. Imagem, áudio, controles e velocidade dos
+  movimentos confirmados normais pelo usuário; o perfil não sustenta
+  60 FPS constantes.
+- Sessão estendida de 30 minutos em `fps60game`, com cópias dos saves e
+  inventário de heaps ativo: média 49,87 FPS (20,1–60), sem falha fatal
+  registrada e com parada programada. Usuário confirmou escalada, saltos
+  no colosso e transição após os créditos normais nesta sessão.
 - Escopo e pendências: [integração seletiva](docs/sotc/INTEGRACAO-AJNC-V060.md).
 
 ## 0.59.1-linux.4 — 2026-10-22 (AppImage/Latest)
