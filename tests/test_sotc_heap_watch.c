@@ -7,6 +7,8 @@ enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000 };
 static uint64_t table[SOTC_HEAP_SLOTS], bitmap[1024];
 static unsigned char object[0x68], pools[SOTC_PAGE_POOLS][0xa0];
 static int read_calls, fail_second_chunk;
+static const uintptr_t ClassImage=0x100000, ClassTable=0x1695b70;
+static uint64_t class_functions[2];
 static void field(size_t at,uint64_t value) { memcpy(object+at,&value,8); }
 static int fixture_read(void *context,uintptr_t address,void *out,size_t size) {
     (void)context;
@@ -22,6 +24,7 @@ static int fixture_read(void *context,uintptr_t address,void *out,size_t size) {
     }
     if (address>=ARENA && address-ARENA<sizeof(pools) && size<=sizeof(pools)-(address-ARENA))
         source=(unsigned char *)pools+address-ARENA;
+    if (address==ClassTable+0xa0 && size==sizeof(class_functions)) source=class_functions;
     if (!source) return 0;
     memcpy(out,source,size);
     return 1;
@@ -195,6 +198,18 @@ int main(int argc,char **argv) {
         table[0]=ARENA+8;
         assert(runtime_page_pool_inventory(TABLE,fixture_read,NULL,out,4)==3);
         assert(!out[0].pool_valid); /* Do not silently treat root as the first bitmap. */
+    } else if (!strcmp(argv[1],"class")) {
+        const uint64_t image_size=0x2000000;
+        class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
+        assert(runtime_heap_is_bpe_class(ClassImage,image_size,ClassTable,fixture_read,NULL));
+        assert(!runtime_heap_is_bpe_class(ClassImage,image_size,ClassTable+8,fixture_read,NULL));
+        class_functions[1]++;
+        assert(!runtime_heap_is_bpe_class(ClassImage,image_size,ClassTable,fixture_read,NULL));
+        class_functions[1]--; class_functions[0]++;
+        assert(!runtime_heap_is_bpe_class(ClassImage,image_size,ClassTable,fixture_read,NULL));
+        assert(!runtime_heap_is_bpe_class(ClassImage,0x10000,ClassTable,fixture_read,NULL));
+        assert(!runtime_heap_is_bpe_class(UINTPTR_MAX-16,image_size,ClassTable,fixture_read,NULL));
+        assert(!runtime_heap_is_bpe_class(ClassImage,image_size,ClassTable,NULL,NULL));
     } else if (!strcmp(argv[1],"kernel")) {
         unsigned char out[32];
         if (!host_read((uintptr_t)backings,out,sizeof(out)) && (errno==EPERM || errno==EACCES)) {

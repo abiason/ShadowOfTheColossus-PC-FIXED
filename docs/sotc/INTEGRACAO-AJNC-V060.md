@@ -291,6 +291,29 @@ recompilado; captura final curta com parada programada. Evidência em
 A descoberta das classes para a guarda de readback continua separada desse
 inventário e não foi alterada.
 
+### Classe BPE identificada; faixas de readback ainda pendentes
+
+A tabela virtual EU 1.01 em `image+0x1595b70` contém as funções em
++0x48c80 e +0x493d0 nas entradas +0xa0/+0xa8. O caminho de liberação
++0x494a0 chama +0x495e0, o mesmo ponto usado pelo hook Windows.
+O monitor confere endereço da tabela e ambas as entradas, via leitor seguro,
+e acrescenta `bpe_class=verified range=undetermined`. Na captura real,
+os slots 3, 7 e 18 foram identificados nessa classe.
+
+A seleção de classe não habilita a guarda Linux. A inspeção de +0x49460
+mostra `heap+0x28` passado como objeto ao caminho de callbacks em +0x45300;
+o log já mostrava o mesmo valor em heaps distintos. Portanto, tratar
+`[heap+0x28, heap+0x28 + heap+0x30)` como faixa própria do heap, como faz
+a guarda importada, não está validado. Os rótulos históricos `base` e
+`bytes` do inventário devem ser lidos como campos brutos +0x28 e +0x30,
+não como uma faixa comprovada. Antes de portar a seleção da guarda, mapear
+as regiões efetivamente pertencentes a cada heap e testar preservação dos
+metadados sem suprimir dados válidos do jogo.
+
+Loader diagnóstico compilado e nove testes passaram fora do sandbox.
+Captura curta em `out/teste-gameplay-preview-atual/game-bpe-class.log`;
+resumo versionado em `docs/validation/2026-10-23-bpe-class.json`.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:
@@ -332,7 +355,8 @@ para validar a seleção e as faixas da guarda Linux.
    O inventário Linux leu objetos durante a sessão estendida, e o usuário
    confirmou transição após os créditos normal. Os pools do alocador foram
    identificados em estrutura separada; a seleção das classes para a guarda
-   Linux continua pendente.
+   Linux identificou a classe BPE; a delimitação das regiões efetivas da guarda
+   continua pendente, pois +0x28 não é uma base de região comprovada.
 2. **Validação dos novos 60 FPS e atomics:** o preview completou dez minutos
    em cada perfil, com imagem, áudio e controles confirmados; no perfil 60,
    o usuário também confirmou velocidade normal dos movimentos. Na sessão

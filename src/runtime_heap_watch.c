@@ -102,6 +102,16 @@ size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader rea
     return count;
 }
 
+int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t class_address,
+                              RuntimeHeapReader read, void *context) {
+    const uint64_t vtable=0x1595b70, entries=0xa0;
+    uint64_t functions[2];
+    if (!read || !image || image_size>UINTPTR_MAX-image ||
+        image_size<vtable+entries+sizeof(functions) || class_address!=image+vtable ||
+        !read(context,(uintptr_t)class_address+entries,functions,sizeof(functions))) return 0;
+    return functions[0]==image+0x48c80 && functions[1]==image+0x493d0;
+}
+
 #ifndef _WIN32
 #include <pthread.h>
 #include <errno.h>
@@ -171,6 +181,9 @@ static void *watch_main(void *unused) {
             else fprintf(stderr," page_pool=unavailable reason=%s candidate_bitmap=%#" PRIx64
                          " candidate_words=%" PRIu32 " candidate_pages=%" PRIu64,
                          s->pool_status,s->candidate_bitmap,s->candidate_words,s->candidate_pages);
+            if (s->readable && runtime_heap_is_bpe_class(watch.image,watch.size,
+                                                         s->class_address,watch_read,&watch))
+                fprintf(stderr," bpe_class=verified range=undetermined");
             fputc('\n',stderr);
         }
         RuntimeHeapSample pools[SOTC_PAGE_POOLS];

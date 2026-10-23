@@ -24,6 +24,10 @@ size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *con
 /* EU 1.01 page allocator root (image+0x2dfca78), separate from heap objects. */
 size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader read, void *context,
                                    RuntimeHeapSample *samples, size_t capacity);
+/* EU 1.01 BPE class identity: vtable location plus allocation/free entries.
+ * Classification only; it does not establish a contiguous guarded range. */
+int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t class_address,
+                              RuntimeHeapReader read, void *context);
 /* Linux: optional SOTC_HEAP_WATCH=1 monitor; disabled by default. */
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size);
 #endif

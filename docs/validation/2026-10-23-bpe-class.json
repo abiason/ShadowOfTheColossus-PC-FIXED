@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-23",
+  "timeout_seconds": 20,
+  "exit_code": 142,
+  "termination": "programmed SIGALRM watchdog",
+  "bpe_slots": [
+    3,
+    7,
+    18
+  ],
+  "vtable_image_offset": "0x1595b70",
+  "allocation_entry_offset": "0xa0",
+  "allocation_function_image_offset": "0x48c80",
+  "free_entry_offset": "0xa8",
+  "free_function_image_offset": "0x493d0",
+  "verified_samples": [
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=165675008 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=9 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=538968064 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=514 candidate_pages=18446744073709551615 bpe_class=verified range=undetermined",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified range=undetermined",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified range=undetermined"
+  ],
+  "fps_mean": 58.23,
+  "fatal_markers": [],
+  "guard_enabled": false,
+  "guard_limitation": "Heap field +0x28 is used as callback object by free path; contiguous ownership range is not established."
+}

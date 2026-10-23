@@ -47,5 +47,8 @@ class HeapWatchTests(unittest.TestCase):
     def test_page_allocator_root_and_descriptor_stride(self):
         self.run_case('pools')
 
+    def test_bpe_class_requires_matching_vtable_and_both_functions(self):
+        self.run_case('class')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')
