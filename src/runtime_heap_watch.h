@@ -10,6 +10,10 @@ typedef struct {
     unsigned id;
     uintptr_t address;
     uint64_t class_address, base, bytes, pages, free_pages;
+    /* Candidate fields, not validated pool metadata until pool_valid is set. */
+    uint64_t candidate_bitmap, candidate_pages;
+    uint32_t candidate_words;
+    const char *pool_status;
     int readable, pool_valid;
 } RuntimeHeapSample;
 

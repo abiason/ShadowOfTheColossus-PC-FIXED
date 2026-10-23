@@ -16,6 +16,8 @@
   SPIR-V validado e cache binário de shaders incrementado de 40 para 41.
 - Inventário de heaps Linux opcional (`SOTC_HEAP_WATCH=1`), somente leitura,
   com contagem de páginas e tratamento de ponteiros indisponíveis.
+  Diagnóstico distingue o motivo de rejeição do pool e mostra campos
+  candidatos; captura real encontrou layout incompatível, não falha de leitura.
 - Launcher grava eventos de sessão em `user/events.log`, com rotação,
   configuração solicitada, início/fim, desempenho e erros; módulo incluído
   no pacote Linux e testado com processos simulados.

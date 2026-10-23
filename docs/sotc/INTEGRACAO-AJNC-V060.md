@@ -246,6 +246,24 @@ nem a proteção contra esgotamento. Resultado e log locais:
 `out/teste-gameplay-preview-atual/resultado-colossos-final-60fps.json`
 e `game-colossos-final-60fps.log` no mesmo diretório.
 
+### Investigação de `page_pool=unavailable`
+
+O monitor agora acrescenta `reason` e os campos candidatos lidos em +0x50,
++0x58 (u32) e +0x60: `candidate_bitmap`, `candidate_words`,
+`candidate_pages`. Os motivos distinguem endereço/objeto ilegível, contagens
+incompatíveis, endereço do bitmap inválido e falha na leitura do bitmap.
+Os candidatos são dados brutos; não são contagens de pool validadas.
+
+Na captura com o loader diagnóstico, os objetos estavam legíveis, mas os
+campos candidatos eram incompatíveis com o layout proposto: bitmap zero,
+páginas zero ou `UINT64_MAX`, com rejeições `word-count-invalid` e
+`page-count-invalid`. A leitura da memória, portanto, não explica essas
+rejeições. O layout de cada classe ainda precisa ser identificado antes de
+contar páginas; não interpretar indisponibilidade como esgotamento.
+Os sete testes do inventário passaram fora do sandbox, incluindo o leitor
+real do kernel e verificações dos motivos/candidatos sem contagens parciais.
+Log local: `out/teste-gameplay-preview-atual/game-heap-diagnostics.log`.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:

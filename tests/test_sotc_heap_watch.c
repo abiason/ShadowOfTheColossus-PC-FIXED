@@ -74,6 +74,8 @@ int main(int argc,char **argv) {
         assert(s.id==3 && s.address==OBJECT && s.readable && s.pool_valid);
         assert(s.class_address==0x12345000 && s.base==0x1000000000 && s.bytes==1024*1024);
         assert(s.pages==100 && s.free_pages==20);
+        assert(!strcmp(s.pool_status,"valid"));
+        assert(s.candidate_bitmap==BITMAP && s.candidate_words==2 && s.candidate_pages==100);
         assert(table[3]==OBJECT && bitmap[0]==0x3ff); /* No guest writes. */
     } else if (!strcmp(argv[1],"padding")) {
         bitmap[1]=~UINT64_C(0)<<36;
@@ -85,19 +87,32 @@ int main(int argc,char **argv) {
         assert(s.pool_valid && s.free_pages==0);
     } else if (!strcmp(argv[1],"invalid")) {
         const uint64_t bad_words[]={0,0x10001};
-        for (size_t i=0;i<2;++i) { field(0x58,bad_words[i]); assert(!snapshot().pool_valid); }
+        for (size_t i=0;i<2;++i) {
+            field(0x58,bad_words[i]);
+            const RuntimeHeapSample s=snapshot();
+            assert(!s.pool_valid && !strcmp(s.pool_status,"word-count-invalid"));
+            assert(s.candidate_words==bad_words[i] && read_calls==2*(int)(i+1));
+        }
         field(0x58,2);
         const uint64_t bad_pages[]={0,129};
-        for (size_t i=0;i<2;++i) { field(0x60,bad_pages[i]); assert(!snapshot().pool_valid); }
+        for (size_t i=0;i<2;++i) {
+            field(0x60,bad_pages[i]);
+            const RuntimeHeapSample s=snapshot();
+            assert(!s.pool_valid && !strcmp(s.pool_status,"page-count-invalid"));
+            assert(s.candidate_pages==bad_pages[i]);
+        }
         field(0x60,100);
         const uint64_t bad_bitmaps[]={0,1,UINT64_MAX-7,0x50000};
         for (size_t i=0;i<4;++i) {
             field(0x50,bad_bitmaps[i]);
             const RuntimeHeapSample s=snapshot();
             assert(s.readable && !s.pool_valid && s.pages==0 && s.free_pages==0);
+            assert(!strcmp(s.pool_status,i==3 ? "bitmap-unreadable" : "bitmap-address-invalid"));
+            assert(s.candidate_bitmap==bad_bitmaps[i]);
         }
         table[3]=OBJECT+0x1000;
-        assert(!snapshot().readable);
+        const RuntimeHeapSample s=snapshot();
+        assert(!s.readable && !strcmp(s.pool_status,"object-unreadable"));
     } else if (!strcmp(argv[1],"chunks")) {
         field(0x58,513); field(0x60,512*64+5);
         for (size_t i=0;i<513;++i) bitmap[i]=UINT64_MAX;
@@ -106,6 +121,8 @@ int main(int argc,char **argv) {
         fail_second_chunk=1;
         s=snapshot();
         assert(s.readable && !s.pool_valid && !s.free_pages); /* Not a partial count. */
+        assert(!strcmp(s.pool_status,"bitmap-unreadable"));
+        assert(s.candidate_pages==512*64+5);
     } else if (!strcmp(argv[1],"bounds")) {
         RuntimeHeapSample output[2]={{0},{.id=999}};
         table[4]=OBJECT;
@@ -120,6 +137,8 @@ int main(int argc,char **argv) {
         read_calls=0;
         assert(runtime_heap_inventory(TABLE,fixture_read,NULL,output,2)==2);
         assert(!output[0].readable && !output[1].readable && read_calls==1);
+        assert(!strcmp(output[0].pool_status,"object-address-invalid"));
+        assert(!strcmp(output[1].pool_status,"object-address-invalid"));
     } else if (!strcmp(argv[1],"backing")) {
         HeapWatch state={.read_host=fixture_host_read};
         unsigned char out[32];

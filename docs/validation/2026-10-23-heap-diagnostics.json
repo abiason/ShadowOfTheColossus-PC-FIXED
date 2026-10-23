@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-23",
+  "timeout_seconds": 60,
+  "exit_code": 142,
+  "termination": "programmed SIGALRM watchdog",
+  "fps_samples": 11,
+  "fps_mean": 58.76,
+  "rejections": {
+    "word-count-invalid": 144,
+    "page-count-invalid": 120
+  },
+  "examples": [
+    "SOTC HEAP 1 @0x22dfb500: readable=1 class=0x215959d0 base=0x1150000020 bytes=0 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC HEAP 2 @0x22dfb600: readable=1 class=0x215946b8 base=0x1150000020 bytes=84213760 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=1285 candidate_pages=0",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=160432128 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=4 candidate_pages=0",
+    "SOTC HEAP 4 @0x22dfc800: readable=1 class=0x21594af8 base=0x1150000020 bytes=322437120 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=31 candidate_pages=0",
+    "SOTC HEAP 5 @0x11596cfea0: readable=1 class=0x215959d0 base=0x1150000020 bytes=0 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0",
+    "SOTC HEAP 6 @0x115009db80: readable=1 class=0x215946b8 base=0x1150000020 bytes=7929856 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=121 candidate_pages=0",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=479199232 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=457 candidate_pages=18446744073709551615",
+    "SOTC HEAP 8 @0x11596bfd20: readable=1 class=0x21594af8 base=0x1150000020 bytes=706871296 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=146 candidate_pages=0",
+    "SOTC HEAP 9 @0x115009ec50: readable=1 class=0x21594790 base=0x1150000020 bytes=8388608 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=1 candidate_pages=0",
+    "SOTC HEAP 10 @0x1159edfa00: readable=1 class=0x215948a0 base=0x1150000020 bytes=67174400 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=3 candidate_pages=0"
+  ],
+  "interpretation": "Readable objects have candidate fields incompatible with proposed page-pool layout; unavailable does not establish exhaustion.",
+  "fatal_markers": []
+}

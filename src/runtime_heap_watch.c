@@ -23,9 +23,11 @@ size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *con
     for (unsigned id=0;id<SOTC_HEAP_SLOTS && count<capacity;++id) {
         if (!heaps[id]) continue;
         RuntimeHeapSample *sample=&samples[count++];
-        *sample=(RuntimeHeapSample){.id=id,.address=(uintptr_t)heaps[id]};
+        *sample=(RuntimeHeapSample){.id=id,.address=(uintptr_t)heaps[id],
+                                    .pool_status="object-address-invalid"};
         /* Same user-address bound as the guard, with space for the whole object. */
         if (heaps[id]<0x10000 || heaps[id]>=(UINT64_C(1)<<40)-0x68 || (heaps[id]&7)) continue;
+        sample->pool_status="object-unreadable";
         unsigned char object[0x68];
         if (!read(context,sample->address,object,sizeof(object))) continue;
         sample->readable=1;
@@ -37,8 +39,16 @@ size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *con
         uint32_t words;
         memcpy(&words,object+0x58,sizeof(words));
         const uint64_t bitmap=word64(object+0x50), pages=word64(object+0x60);
-        if (!words || words>0x10000 || !pages || pages>(uint64_t)words*64 ||
-            !bitmap || (bitmap&7) || bitmap>UINTPTR_MAX-(uint64_t)words*8) continue;
+        sample->candidate_bitmap=bitmap;
+        sample->candidate_pages=pages;
+        sample->candidate_words=words;
+        sample->pool_status="word-count-invalid";
+        if (!words || words>0x10000) continue;
+        sample->pool_status="page-count-invalid";
+        if (!pages || pages>(uint64_t)words*64) continue;
+        sample->pool_status="bitmap-address-invalid";
+        if (!bitmap || (bitmap&7) || bitmap>UINTPTR_MAX-(uint64_t)words*8) continue;
+        sample->pool_status="bitmap-unreadable";
         const uint64_t needed=(pages+63)/64;
         uint64_t free_pages=0;
         int valid=1;
@@ -55,6 +65,7 @@ size_t runtime_heap_inventory(uintptr_t table, RuntimeHeapReader read, void *con
             offset+=n;
         }
         if (valid) {
+            sample->pool_status="valid";
             sample->pool_valid=1;
             sample->pages=pages;
             sample->free_pages=free_pages;
@@ -129,7 +140,9 @@ static void *watch_main(void *unused) {
                     s->class_address,s->base,s->bytes);
             if (s->pool_valid) fprintf(stderr," pages_free=%" PRIu64 "/%" PRIu64,
                                        s->free_pages,s->pages);
-            else fprintf(stderr," page_pool=unavailable");
+            else fprintf(stderr," page_pool=unavailable reason=%s candidate_bitmap=%#" PRIx64
+                         " candidate_words=%" PRIu32 " candidate_pages=%" PRIu64,
+                         s->pool_status,s->candidate_bitmap,s->candidate_words,s->candidate_pages);
             fputc('\n',stderr);
         }
         funlockfile(stderr);
