@@ -17,6 +17,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cstdio>
@@ -26,49 +27,73 @@
 #include "common/types.h"
 
 extern "C" const unsigned char* runtime_memory_backing_pointer(uintptr_t address);
+extern "C" int runtime_memory_region(uintptr_t address, uintptr_t* start, uintptr_t* end,
+                                     int* mapped);
 
 namespace SotcLod {
 
 inline std::atomic<u32> uses[256]{};
+
+inline bool ReadBacking(uintptr_t address, void* destination, u64 size) {
+    if (!size || address > UINTPTR_MAX - (size - 1)) {
+        return false;
+    }
+    auto* out = static_cast<u8*>(destination);
+    while (size) {
+        uintptr_t start = 0, end = 0;
+        int mapped = 0;
+        if (!runtime_memory_region(address, &start, &end, &mapped) || !mapped ||
+            address < start || address >= end) {
+            return false;
+        }
+        const u8* backing = runtime_memory_backing_pointer(address);
+        if (!backing) {
+            return false;
+        }
+        const u64 count = std::min<u64>(size, end - address);
+        std::memcpy(out, backing, count);
+        address += count;
+        out += count;
+        size -= count;
+    }
+    return true;
+}
 
 // EU 1.01's 64 KiB streaming-page pool. Read its bitmap through the backing view,
 // bypassing GPU tracking protection. An unavailable or invalid pool must not change LOD.
 // Adapted from AjncSystem's 0.60.3/0.60.4 pressure protection, PR #191.
 inline int PoolFreePercent() {
     constexpr uintptr_t Pool = 0x1000000140;
-    const auto view = [](uintptr_t address, u64 size) -> const u8* {
-        if (!size || address > UINTPTR_MAX - (size - 1)) {
-            return nullptr;
-        }
-        const u8* first = runtime_memory_backing_pointer(address);
-        const u8* last = first ? runtime_memory_backing_pointer(address + size - 1) : nullptr;
-        return first && last && reinterpret_cast<uintptr_t>(last) -
-                                   reinterpret_cast<uintptr_t>(first) == size - 1
-                   ? first : nullptr;
-    };
-    const u8* pool = view(Pool, 0x68);
-    if (!pool) {
+    std::array<u8, 0x68> pool;
+    if (!ReadBacking(Pool, pool.data(), pool.size())) {
         return -1;
     }
     u64 bitmap, words, pages;
-    std::memcpy(&bitmap, pool + 0x50, 8);
-    std::memcpy(&words, pool + 0x58, 8);
-    std::memcpy(&pages, pool + 0x60, 8);
+    std::memcpy(&bitmap, pool.data() + 0x50, 8);
+    std::memcpy(&words, pool.data() + 0x58, 8);
+    std::memcpy(&pages, pool.data() + 0x60, 8);
     if (!words || words > 0x10000 || !pages || pages > words * 64) {
         return -1;
     }
-    const u8* bits = view(bitmap, words * 8);
-    if (!bits) {
+    const u64 needed = (pages + 63) / 64;
+    if (bitmap > UINTPTR_MAX - (needed * 8 - 1)) {
         return -1;
     }
     u64 free = 0;
-    for (u64 i = 0; i < (pages + 63) / 64; ++i) {
-        u64 word;
-        std::memcpy(&word, bits + i * 8, 8);
-        if (const u64 remaining = pages - i * 64; remaining < 64) {
-            word &= (u64{1} << remaining) - 1;
+    for (u64 offset = 0; offset < needed;) {
+        std::array<u64, 512> chunk;
+        const u64 count = std::min<u64>(chunk.size(), needed - offset);
+        if (!ReadBacking(bitmap + offset * 8, chunk.data(), count * 8)) {
+            return -1; // Never report a partial count as a valid pool percentage.
         }
-        free += std::popcount(word);
+        for (u64 i = 0; i < count; ++i) {
+            u64 word = chunk[i];
+            if (const u64 remaining = pages - (offset + i) * 64; remaining < 64) {
+                word &= (u64{1} << remaining) - 1;
+            }
+            free += std::popcount(word);
+        }
+        offset += count;
     }
     return static_cast<int>(free * 100 / pages);
 }
@@ -136,7 +161,7 @@ inline void Collect(u64 (&entries)[256]) {
         const u32 n = uses[i].exchange(0, std::memory_order_relaxed);
         if (n) {
             idle[i] = 0;
-            last_count[i] = std::min<u32>(n * 256u, 0xffffff);
+            last_count[i] = static_cast<u32>(std::min<u64>(u64{n} * 256, 0xffffff));
         } else if (idle[i] < linger) {
             ++idle[i];
         }

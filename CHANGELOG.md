@@ -6,6 +6,10 @@
   evitar sobrescrever memória reutilizada pelo jogo.
 - Proteção do pool de texturas com histerese, quando os relatórios de alta
   qualidade estão habilitados; validação de bitmap e testes sem GPU.
+- Bitmap de texturas lido por região virtual, respeitando lacunas e
+  remapeamentos físicos; contagens parciais são rejeitadas.
+- Prioridade de streaming satura em 24 bits sem overflow na multiplicação
+  de contagens elevadas de amostras.
 - Launcher usa o alvo interno de 60 FPS (`fps60game`), com conferência dos
   bytes originais em cada instrução. Desbloqueio antigo continua explícito.
 - Fallback de atomics float min/max executa uma única escrita por chamada;

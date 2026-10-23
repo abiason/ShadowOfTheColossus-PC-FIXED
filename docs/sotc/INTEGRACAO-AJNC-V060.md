@@ -23,6 +23,18 @@ Branch de trabalho: `integracao-ajnc-v0.60-estabilidade`.
   desliga a proteção; `SOTC_LOD_LEVEL` continua disponível para diagnóstico.
   O nível de mip fica limitado a 14, preservando 15 como marcador de banco
   não utilizado.
+  A revisão posterior substituiu a validação apenas dos endpoints por
+  cópias delimitadas por cada VMA. Endpoints fisicamente contíguos não
+  garantem que os bytes intermediários estejam mapeados ou usem o mesmo
+  backing: um novo teste reproduziu a aceitação incorreta antes da correção.
+  A leitura agora respeita lacunas e remapeamentos intermediários, aceita
+  fragmentos físicos válidos e conta o bitmap em blocos de até 4 KiB.
+  Se qualquer bloco falha, retorna pool indisponível, sem contagem parcial.
+  A prioridade de streaming também passa a multiplicar a contagem em 64
+  bits antes de saturar no campo de 24 bits. Um teste reproduziu que
+  `0x1000000` amostras recebiam prioridade zero pela multiplicação anterior
+  de 32 bits; agora recebem a prioridade máxima, como as demais contagens
+  acima do limite. Não há medição de ocorrência desse caso em gameplay.
 - `fps60game`: adiciona os três patches de alvo interno e a cvar
   `TargetFramesPerSeconds=1` da upstream. O checkbox de 60 FPS do launcher
   usa esse modo; o runner configura vblank e apresentação para 60 Hz/FPS,
@@ -110,9 +122,14 @@ não é um cherry-pick nem uma atualização integral para a tag 0.60.6.
 - Loader com o novo runtime recompilado em
   `out/validacao-ajnc-v060/bb-probe`; 14 testes do loader passaram contra
   esse binário, antes de atualizar `out/bb-probe`.
-- Quatro testes novos executam o cabeçalho real com um pool sintético:
+- Seis testes executam o cabeçalho real com um pool sintético:
   pressão e recuperação, histerese, mapa inválido/ausente, bitmap com bits
   de preenchimento, proteção desligada, streaming desligado e mip limite.
+  O caso novo cobre uma lacuna com endpoints válidos, um remapeamento no
+  meio com endpoints ainda contíguos, backing fragmentado válido, bitmap
+  com mais de um bloco e falha depois de um primeiro bloco completo.
+  O teste de prioridade verifica uma contagem pequena, a saturação normal
+  e o valor elevado que reproduzia o overflow.
 - 41 testes de launcher, runner, dependências e pacote Linux: sucesso,
   incluindo timing de `fps60game`, overrides e modo legado.
   O teste adicional importa o launcher extraído de um arquivo empacotado,
@@ -149,7 +166,7 @@ não é um cherry-pick nem uma atualização integral para a tag 0.60.6.
   A CI executa esse grupo após compilar o binário, sem exigir dispositivo
   Vulkan. O stub de `runtime_disabled_optimizations` foi alinhado ao tipo
   real de 64 bits; os dois testes de atomics passaram novamente.
-- Suíte `test_sotc_*.py`: 100 testes, 99 aprovados e um skip explícito da
+- Suíte `test_sotc_*.py`: 102 testes, 101 aprovados e um skip explícito da
   leitura de memória pelo kernel. Os grupos de loader (14) e atomics (2)
   acima também passaram separadamente nos lotes anteriores.
 - `git diff --check`: sucesso.

@@ -39,3 +39,9 @@ class LodPressureTests(unittest.TestCase):
 
     def test_coarse_mip_does_not_become_unused_marker(self):
         self.run_case('clamped', SOTC_LOD_LEVEL='14')
+
+    def test_mapping_holes_and_remapped_physical_fragments(self):
+        self.run_case('mapping')
+
+    def test_large_sample_counts_saturate_streaming_priority(self):
+        self.run_case('priority')
