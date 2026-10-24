@@ -542,3 +542,25 @@ a execução padrão daquela com `SOTC_LOD_LINGER=1`, pois a proteção do pool
 fica inativa quando os relatórios de alta qualidade estão desligados.
 Medir FPS e uso de memória, observar corrupção visual e verificar transição
 após os créditos; uma sessão curta sem falha não comprova esse último caso.
+
+## Preview local do commit 8938afab — 2026-10-24
+
+Tarball e AppImage foram gerados em `out/preview-guard-linux-20261024/`,
+com proveniência do build, hashes e estado dos patches FSR verificados.
+A guarda Linux experimental permanece desligada por padrão. Não houve
+publicação remota desses artefatos.
+
+O tarball passou pela verificação de 42 arquivos e linkage. O AppImage real
+passou pela entrada sem FUSE com Python 3.14.8, Tk e Pillow embarcados,
+checagem gráfica oculta e hashes preservados. Uma execução separada do
+payload AppDir (Python, bibliotecas, runner e loader embarcados), usando
+imagem preparada e dados de usuário externos, completou 60 segundos a
+30 FPS: 11 amostras, média 29,74, mínima 28,5 e máxima 30. O watchdog
+programado encerrou com 142; sem falha fatal registrada. Áudio manteve
+cadência regular, sem starvation observada; confirmação visual/áudio do
+usuário para esse novo payload continua pendente.
+
+Os dados e limites do smoke test estão em
+`docs/validation/2026-10-24-guard-package.json`. Essa abertura curta não
+substitui gameplay prolongado do novo pacote nem valida a guarda opcional
+em colossos, pós-créditos, destruição de heaps ou regiões com donos aninhados.

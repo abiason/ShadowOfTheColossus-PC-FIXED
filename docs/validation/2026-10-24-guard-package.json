@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-24",
+  "source_commit": "8938afabde4214aa6334624c5288b36f48ae2985",
+  "artifacts": [
+    {
+      "path": "out/preview-guard-linux-20261024/SotC-PC-8938afabde42-x86_64.AppImage",
+      "sha256": "ba83274ed57c899756a88e3b4e5f5775eddee882b66452fb8b983ccba6f1e7e9",
+      "bytes": 143067640
+    },
+    {
+      "path": "out/preview-guard-linux-20261024/SotC-PC-linux-x86_64-8938afabde42-a20a5354ed1e.tar.gz",
+      "sha256": "9f6214468a23340fd85a9af3452eaf9f13d8bd58d238dfd6089cb037719bcece",
+      "bytes": 57828497
+    }
+  ],
+  "appimage_runtime_check": {
+    "python": "3.14.8",
+    "bundled_python": true,
+    "bundled_tk": true,
+    "bundled_pillow": true,
+    "gui_checked": true,
+    "game_started": false,
+    "data": "/tmp/sotc appimage check spaces dzoagtkj/data",
+    "appimage": "SotC-PC-8938afabde42-x86_64.AppImage",
+    "sha256": "ba83274ed57c899756a88e3b4e5f5775eddee882b66452fb8b983ccba6f1e7e9",
+    "image_unchanged": true
+  },
+  "gameplay_payload_check": {
+    "scope": "Bundled AppDir Python, shared libraries, sotc.py and bb-probe; prepared game and copied user data remain external. GUI/actual AppImage entry verified separately.",
+    "profile_fps": 30,
+    "experimental_guard": "off",
+    "timeout_seconds": 60,
+    "exit_code": 142,
+    "programmed_timeout": true,
+    "fps_samples": 11,
+    "fps_mean": 29.74,
+    "fps_min": 28.5,
+    "fps_max": 30.0,
+    "audio_port0_stats": [
+      "Audio stats port 0: 942 buffers/5s (expected 937), max gap 12.26 ms, min queued 0 bytes, starved 1",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 8.01 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 6.20 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 5.92 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 5.72 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 8.44 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 6.00 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 5.77 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 6.01 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 5.73 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 5.82 ms, min queued 32768 bytes, starved 0",
+      "Audio stats port 0: 938 buffers/5s (expected 937), max gap 9.44 ms, min queued 40960 bytes, starved 0"
+    ],
+    "fatal_markers": [],
+    "user_confirmation": "pending for this new payload smoke test"
+  },
+  "distribution": "Local preview artifacts; no remote publication performed. Experimental Linux guard remains off by default."
+}
