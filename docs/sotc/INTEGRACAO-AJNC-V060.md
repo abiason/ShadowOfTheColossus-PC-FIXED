@@ -341,6 +341,35 @@ captura de 20 segundos sem alteração da guarda Linux; resultado em
 `docs/validation/2026-10-24-bpe-regions.json`, log completo local em
 `out/teste-gameplay-preview-atual/game-bpe-regions.log`.
 
+### Regiões externas confirmadas — 2026-10-24
+
+Os caminhos +0x489b8 (gerenciado) e +0x48a36 (externo) ligam o header
+da região à cadeia em `heap+0xb8`. Esse header contém próximo em +0 e
+marcador 3 em +8. Para regiões sem descritor gerenciado, o inventário anda
+pelos headers físicos a partir de base+0x10: valida o ponteiro anterior,
+avança por 16 + tamanho (flags baixas removidas) e aceita o fim apenas com
+marcador 1 e tamanho zero. O limite inclui esse header terminal.
+
+A leitura é limitada a 1024 regiões e 4096 blocos por região externa.
+Rejeita ciclos, limites excedidos, headers ilegíveis/inconsistentes,
+sobreposição e regiões gerenciadas ausentes da cadeia; relê a cabeça ao
+final. Falhas retornam contagem zero com motivo. Essas verificações não
+criam um snapshot atômico e ainda não autorizam uso concorrente pela guarda.
+
+A captura confirmou o heap 18 com uma região externa de 4 MiB em
+`0x115f370000`, enquanto a lista de descritores gerenciados estava vazia.
+Os heaps 3 e 7 também produziram listas combinadas válidas com totais
+coincidentes com +0x30 nas amostras observadas. Isso conclui a identificação
+dos dois caminhos de regiões observados; não comprova estabilidade de
+ponteiros após a amostra ou cobertura de outras versões do jogo.
+
+Onze testes passaram fora do sandbox, incluindo blocos externos, cadeias
+inválidas e descritores gerenciados ausentes. Loader recompilado; captura
+curta em `out/teste-gameplay-preview-atual/game-bpe-external.log`, resumo
+em `docs/validation/2026-10-24-bpe-external.json`. Próxima etapa: integrar
+regiões e seleção de classe à guarda, com testes do renderer e da política
+de invalidação/sincronização. A guarda Linux continua desativada.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:
@@ -383,7 +412,8 @@ para validar a seleção e as faixas da guarda Linux.
    confirmou transição após os créditos normal. Os pools do alocador foram
    identificados em estrutura separada; a seleção das classes para a guarda
    Linux identificou a classe BPE; a delimitação das regiões efetivas da guarda
-   continua pendente, pois +0x28 não é uma base de região comprovada.
+   foi obtida pelos descritores gerenciados e pela cadeia externa. A integração
+   dessas regiões à guarda, com sincronização e invalidação, continua pendente.
 2. **Validação dos novos 60 FPS e atomics:** o preview completou dez minutos
    em cada perfil, com imagem, áudio e controles confirmados; no perfil 60,
    o usuário também confirmou velocidade normal dos movimentos. Na sessão

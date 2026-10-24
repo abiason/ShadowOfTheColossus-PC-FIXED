@@ -38,6 +38,10 @@ typedef struct {
 int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *context,
                              RuntimeHeapRegion *regions, size_t capacity,
                              size_t *count, const char **status);
+/* Includes external blocks linked at heap+0xb8; rejects incomplete walks. */
+int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *context,
+                            RuntimeHeapRegion *regions, size_t capacity,
+                            size_t *count, const char **status);
 /* Linux: optional SOTC_HEAP_WATCH=1 monitor; disabled by default. */
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size);
 #endif

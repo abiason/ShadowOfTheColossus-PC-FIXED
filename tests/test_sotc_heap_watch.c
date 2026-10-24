@@ -5,7 +5,9 @@
 
 enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000 };
 static uint64_t table[SOTC_HEAP_SLOTS], bitmap[1024];
-static unsigned char object[0x68], pools[SOTC_PAGE_POOLS][0xa0];
+static unsigned char object[0xc0], pools[SOTC_PAGE_POOLS][0xa0];
+static unsigned char external[0x20000];
+static const uint64_t External=UINT64_C(0x100000000);
 static int read_calls, fail_second_chunk, mutate_list;
 static const uintptr_t ClassImage=0x100000, ClassTable=0x1695b70;
 static uint64_t class_functions[2];
@@ -25,6 +27,8 @@ static int fixture_read(void *context,uintptr_t address,void *out,size_t size) {
     if (address>=ARENA && address-ARENA<sizeof(pools) && size<=sizeof(pools)-(address-ARENA))
         source=(unsigned char *)pools+address-ARENA;
     if (address==ClassTable+0xa0 && size==sizeof(class_functions)) source=class_functions;
+    if (address>=External && address-External<sizeof(external) && size<=sizeof(external)-(address-External))
+        source=external+address-External;
     if (!source) return 0;
     memcpy(out,source,size);
     if (mutate_list && address==OBJECT+0x38 && size==0x28) ((unsigned char *)out)[0]^=1;
@@ -235,6 +239,49 @@ int main(int argc,char **argv) {
         assert(!count && !strcmp(status,"valid"));
         assert(!runtime_bpe_heap_regions(OBJECT,NULL,NULL,regions,2,&count,&status));
         assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,NULL,&status));
+    } else if (!strcmp(argv[1],"external")) {
+        RuntimeHeapRegion regions[2]; size_t count; const char *status;
+        field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0);
+        field(0xb8,External);
+        uint64_t dummy[2]={External+0x10000,3};
+        uint64_t block[2]={External,0x10000-48+1};
+        uint64_t end[2]={External+16,1};
+        memcpy(external,dummy,16); memcpy(external+16,block,16);
+        memcpy(external+0x10000-16,end,16);
+        dummy[0]=0; block[0]=External+0x10000; end[0]=External+0x10000+16;
+        memcpy(external+0x10000,dummy,16); memcpy(external+0x10000+16,block,16);
+        memcpy(external+0x20000-16,end,16);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==2 && regions[0].base==External && regions[1].bytes==0x10000);
+        assert(!regions[0].descriptor && !regions[1].descriptor);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,1,&count,&status));
+        assert(!count && !strcmp(status,"capacity-exceeded"));
+        external[0x10000]=1;
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count); external[0x10000]=0;
+        memcpy(external+0x10000,&External,8);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count); memset(external+0x10000,0,8);
+        external[16]^=8;
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"block-chain-invalid")); external[16]^=8;
+        external[0x10000-8]=3;
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"block-chain-invalid"));
+        field(0xb8,0);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count);
+        /* A managed descriptor must also occur in the physical region list. */
+        uint64_t node[13]={0};
+        node[0]=ARENA; node[1]=OBJECT+0x38; node[2]=OBJECT+0x38; node[3]=OBJECT+0x38;
+        node[11]=0x10000; node[12]=External;
+        memcpy(pools[0],node,sizeof(node));
+        field(0x40,ARENA); field(0x48,ARENA); field(0x58,1);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"managed-region-missing"));
+        memset(external,0,8); field(0xb8,External);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==1 && regions[0].descriptor==ARENA);
     } else if (!strcmp(argv[1],"class")) {
         const uint64_t image_size=0x2000000;
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;

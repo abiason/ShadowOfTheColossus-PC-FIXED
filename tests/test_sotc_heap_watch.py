@@ -53,5 +53,8 @@ class HeapWatchTests(unittest.TestCase):
     def test_bpe_regions_reject_partial_changed_and_overlapping_lists(self):
         self.run_case('regions')
 
+    def test_external_regions_require_complete_physical_block_chains(self):
+        self.run_case('external')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')

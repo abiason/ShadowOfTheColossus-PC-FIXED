@@ -160,6 +160,77 @@ int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *conte
     return 1;
 }
 
+/* Both managed (+0x489b8) and external (+0x48a36) paths link a dummy
+ * header at the region base to heap+0xb8. External region ends are recovered
+ * from the physical block chain, never from heap+0x28 or bytes in use. */
+int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *context,
+                            RuntimeHeapRegion *regions, size_t capacity,
+                            size_t *count, const char **status) {
+    RuntimeHeapRegion managed[1024];
+    size_t managed_count=0;
+    if (count) *count=0;
+    if (status) *status="arguments-invalid";
+    if (!regions || !capacity || !count || !status) return 0;
+    if (!runtime_bpe_heap_regions(heap,read,context,managed,1024,&managed_count,status)) return 0;
+    uint64_t head=0,after=0;
+    *status="region-head-unreadable";
+    if (!read(context,heap+0xb8,&head,8)) return 0;
+    size_t n=0,matched=0;
+    for (uint64_t base=head;base;) {
+        *status="capacity-exceeded";
+        if (n>=capacity || n>=1024) return 0;
+        *status="region-address-invalid";
+        if (base<0x100000000 || base>=(UINT64_C(1)<<40)-32 || (base&0xffff)) return 0;
+        for (size_t j=0;j<n;++j) {
+            *status="region-cycle";
+            if (regions[j].base==base) return 0;
+        }
+        uint64_t header[2];
+        *status="region-header-unreadable";
+        if (!read(context,(uintptr_t)base,header,sizeof(header))) return 0;
+        *status="region-header-invalid";
+        if (header[1]!=3) return 0;
+        uint64_t bytes=0,descriptor=0;
+        for (size_t j=0;j<managed_count;++j) if (managed[j].base==base) {
+            bytes=managed[j].bytes; descriptor=managed[j].descriptor; ++matched; break;
+        }
+        if (!bytes) {
+            uint64_t block=base+16,previous=base;
+            for (size_t step=0;step<4096;++step) {
+                uint64_t words[2];
+                *status="block-header-unreadable";
+                if (block>(UINT64_C(1)<<40)-16 || !read(context,(uintptr_t)block,words,16)) return 0;
+                *status="block-chain-invalid";
+                if (words[0]!=previous) return 0;
+                const uint64_t size=words[1]&~UINT64_C(7);
+                if (!size) {
+                    if (words[1]!=1) return 0;
+                    bytes=block+16-base;
+                    break;
+                }
+                if (size>UINT64_C(0x100000000) || size>(UINT64_C(1)<<40)-block-16) return 0;
+                previous=block; block+=16+size;
+            }
+            *status="block-walk-limit";
+            if (!bytes) return 0;
+        }
+        *status="range-invalid";
+        if ((bytes&0xffff) || bytes>(UINT64_C(1)<<40)-base) return 0;
+        for (size_t j=0;j<n;++j) {
+            *status="ranges-overlap";
+            if (base<regions[j].base+regions[j].bytes && regions[j].base<base+bytes) return 0;
+        }
+        regions[n++]=(RuntimeHeapRegion){.descriptor=descriptor,.base=base,.bytes=bytes};
+        base=header[0];
+    }
+    *status="managed-region-missing";
+    if (matched!=managed_count) return 0;
+    *status="region-head-changed";
+    if (!read(context,heap+0xb8,&after,8) || after!=head) return 0;
+    *status="valid"; *count=n;
+    return 1;
+}
+
 #ifndef _WIN32
 #include <pthread.h>
 #include <errno.h>
@@ -235,7 +306,7 @@ static void *watch_main(void *unused) {
                 RuntimeHeapRegion regions[1024];
                 size_t count=0;
                 const char *status;
-                const int valid=runtime_bpe_heap_regions(s->address,watch_read,&watch,regions,
+                const int valid=runtime_bpe_all_regions(s->address,watch_read,&watch,regions,
                                                          1024,&count,&status);
                 fprintf(stderr," bpe_class=verified regions_status=%s regions=%zu",status,count);
                 if (valid) {

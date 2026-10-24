@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-24",
+  "timeout_seconds": 20,
+  "exit_code": 142,
+  "termination": "programmed SIGALRM watchdog",
+  "region_chain_heap_offset": "0xb8",
+  "samples": [
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=157286400 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=1 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=157286400 region0=0x1150000000+0x9600000",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=480247808 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=458 candidate_pages=0 bpe_class=verified regions_status=valid regions=458 region_bytes=480247808 region0=0x10bad00000+0x100000 region1=0x10ba800000+0x100000 region2=0x10ba700000+0x100000 region3=0x10ba600000+0x100000",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=4194304 region0=0x115f370000+0x400000",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=managed-region-missing regions=0",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10df700000+0x100000 region1=0x10df400000+0x100000 region2=0x10df200000+0x100000 region3=0x10ded00000+0x100000",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=4194304 region0=0x115f370000+0x400000",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=managed-region-missing regions=0",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10df700000+0x100000 region1=0x10df400000+0x100000 region2=0x10df200000+0x100000 region3=0x10ded00000+0x100000",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=4194304 region0=0x115f370000+0x400000",
+    "SOTC HEAP 3 @0x22dfc700: readable=1 class=0x21595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=managed-region-missing regions=0",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x21595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10df700000+0x100000 region1=0x10df400000+0x100000 region2=0x10df200000+0x100000 region3=0x10ded00000+0x100000",
+    "SOTC HEAP 18 @0x22ed3260: readable=1 class=0x21595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=4194304 region0=0x115f370000+0x400000"
+  ],
+  "fps_mean": 58.23,
+  "fatal_markers": [],
+  "guard_enabled": false,
+  "limitation": "Read-only concurrent diagnostic, not atomic; guard integration still needs synchronization and invalidation."
+}
