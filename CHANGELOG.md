@@ -47,6 +47,10 @@
   inventário de heaps ativo: média 49,87 FPS (20,1–60), sem falha fatal
   registrada e com parada programada. Usuário confirmou escalada, saltos
   no colosso e transição após os créditos normais nesta sessão.
+- Protótipo experimental da guarda Linux por regiões (`SOTC_HEAP_GUARD_LINUX=1`),
+  desligado por padrão. Testes sintéticos de preservação e locks aprovados;
+  execução prolongada apresentou regressão de desempenho e ainda não
+  confirmou escrita protegida. Não pronto para habilitação na distribuição.
 - Escopo e pendências: [integração seletiva](docs/sotc/INTEGRACAO-AJNC-V060.md).
 
 ## 0.59.1-linux.4 — 2026-10-22 (AppImage/Latest)

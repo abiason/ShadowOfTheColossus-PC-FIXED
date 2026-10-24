@@ -23,6 +23,9 @@
 #include "video_core/buffer_cache/bpe_heap_guard.h"
 #include "bbport_copy.h"
 #include <optional>
+#ifndef _WIN32
+#include "../../../../src/runtime_heap_guard.h"
+#endif
 
 extern "C" uintptr_t runtime_sotc_heap(void);
 #include "video_core/buffer_cache/region_definitions.h"
@@ -960,6 +963,90 @@ u64 BufferCache::GatherDownloads(const Buffer* arena, VAddr device_addr, u64 siz
 
 void BufferCache::ApplyDownloads(std::span<const ReadbackItem> pending, const u8* mapped,
                                  u64 mapped_offset) {
+#ifndef _WIN32
+    static const bool scoped_linux = [] {
+        const char* value = std::getenv("SOTC_HEAP_GUARD_LINUX");
+        return value && std::strcmp(value, "1") == 0;
+    }();
+    if (scoped_linux) {
+        struct Piece { VAddr address; const u8* data; u64 size; std::vector<std::pair<VAddr,VAddr>> covered; };
+        struct Context { Core::MemoryManager* memory; std::vector<Piece> pieces; } context{memory, {}};
+        for (const auto& item : pending) for (const auto& copy : item.copies) {
+            const VAddr dst = item.arena->cpu_addr + copy.srcOffset;
+            const u8* src = mapped + (copy.dstOffset - mapped_offset);
+            ForEachNonStackRange(dst, copy.size, [&](VAddr addr, u64 size) {
+                context.pieces.push_back({addr, src + addr - dst, size, {}});
+            });
+        }
+        runtime_heap_guard_visit([](void* opaque, uintptr_t heap, const RuntimeGuardRegion* ranges,
+                                     size_t count, RuntimeGuardRead read, void* read_context) {
+            auto& ctx = *static_cast<Context*>(opaque);
+            struct ReadContext { RuntimeGuardRead read; void* context; } reader{read, read_context};
+            try {
+                std::vector<BpeHeapGuard::Region> regions;
+                for (size_t i = 0; i < count; ++i) regions.emplace_back(ranges[i].base, ranges[i].bytes);
+                BpeHeapGuard guard{ctx.memory, heap, regions,
+                    [](void* p, VAddr addr, void* out, u64 size) {
+                        auto& r = *static_cast<ReadContext*>(p);
+                        return r.read(r.context, addr, out, size) != 0;
+                    }, &reader};
+                if (!guard.IsValid()) return;
+                for (auto& piece : ctx.pieces) for (const auto& [base, bytes] : regions) {
+                    const VAddr lo = std::max(base, piece.address);
+                    const VAddr hi = std::min(base + bytes, piece.address + piece.size);
+                    if (lo >= hi) continue;
+                    // Do not write a byte twice if heap regions overlap between classes.
+                    std::sort(piece.covered.begin(), piece.covered.end());
+                    auto gaps = std::vector<std::pair<VAddr,VAddr>>{};
+                    VAddr cursor = lo;
+                    for (const auto& [a,b] : piece.covered) {
+                        if (b <= cursor || a >= hi) continue;
+                        if (a > cursor) gaps.emplace_back(cursor, std::min(a, hi));
+                        cursor = std::max(cursor, b);
+                    }
+                    if (cursor < hi) gaps.emplace_back(cursor, hi);
+                    piece.covered.reserve(piece.covered.size() + gaps.size());
+                    for (const auto& [a,b] : gaps) {
+                        u64 kept = 0;
+                        SotcStats::heap_guard_builds.fetch_add(1, std::memory_order_relaxed);
+                        if (guard.TryWrite(a, piece.data + a - piece.address, b - a, kept)) {
+                            piece.covered.emplace_back(a,b);
+                            static std::atomic<unsigned> reports{};
+                            if (reports.fetch_add(1, std::memory_order_relaxed) < 4)
+                                std::fprintf(stderr, "SOTC HEAP GUARD: scoped write %#llx +%llu, kept %llu metadata bytes\n",
+                                    static_cast<unsigned long long>(a), static_cast<unsigned long long>(b-a),
+                                    static_cast<unsigned long long>(kept));
+                        } else {
+                            static std::atomic<unsigned> rejected{};
+                            if (rejected.fetch_add(1, std::memory_order_relaxed) < 4)
+                                std::fprintf(stderr, "SOTC HEAP GUARD: scoped write rejected: %s\n", guard.LastFailure());
+                        }
+                    }
+                }
+            } catch (...) {
+                // C runtime releases both locks after this callback returns.
+                // Uncovered bytes follow the normal readback path below.
+            }
+        }, &context);
+        for (auto& piece : context.pieces) {
+            std::sort(piece.covered.begin(), piece.covered.end());
+            VAddr cursor = piece.address;
+            const auto write = [&](VAddr a, VAddr b) {
+                if (a < b) memory->TryWriteBacking(std::bit_cast<void*>(a),
+                                                   piece.data + a - piece.address, b - a, 1);
+            };
+            for (const auto& [a,b] : piece.covered) { write(cursor,a); cursor = std::max(cursor,b); }
+            write(cursor,piece.address + piece.size);
+        }
+        // Match the normal readback path: stale GPU-modified flags must not
+        // trigger another download over newer CPU allocator state.
+        for (const auto& item : pending) {
+            memory_tracker->UnmarkRegionAsGpuModified(item.addr, item.size, false);
+            MarkInflightReadbacksDirty(item.addr, item.size);
+        }
+        return;
+    }
+#endif
     static std::optional<BpeHeapGuard> cached_guard;
     static std::array<u64, 3> cached_signature{};
     BpeHeapGuard* heap_guard = nullptr;

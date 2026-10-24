@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-24",
+  "experimental_option": "SOTC_HEAP_GUARD_LINUX=1",
+  "default": "off",
+  "tests": {
+    "sotc_suite": "108 tests, 107 passed, 1 kernel-reader skip in sandbox",
+    "heap_runtime_outside_sandbox": "12 passed",
+    "loader": "14 passed",
+    "renderer_guard": "Actual C++ implementation exercised with synthetic memory; headers/free links preserved, fresh state, inconsistent chains rejected."
+  },
+  "sessions": [
+    {
+      "log": "game-scoped-guard-before-tracking-fix.log",
+      "samples": 0,
+      "fps_mean": null,
+      "fps_min": null,
+      "fps_max": null,
+      "locked_heap_reports": 0,
+      "protected_write_reports": 0,
+      "programmed_watchdog": true,
+      "fatal_markers": []
+    },
+    {
+      "log": "game-scoped-guard.log",
+      "samples": 23,
+      "fps_mean": 29.14,
+      "fps_min": 15.1,
+      "fps_max": 60.0,
+      "locked_heap_reports": 4,
+      "protected_write_reports": 0,
+      "programmed_watchdog": true,
+      "fatal_markers": []
+    },
+    {
+      "log": "game-scoped-guard-final.log",
+      "samples": 3,
+      "fps_mean": 58.1,
+      "fps_min": 54.5,
+      "fps_max": 60.0,
+      "locked_heap_reports": 4,
+      "protected_write_reports": 0,
+      "programmed_watchdog": true,
+      "fatal_markers": []
+    },
+    {
+      "log": "game-scoped-guard-rejections.log",
+      "fps_mean": 40.36,
+      "rejections": [
+        "free-tree-invalid",
+        "arguments-or-guard-invalid",
+        "arguments-or-guard-invalid",
+        "free-tree-invalid"
+      ],
+      "protected_write_reports": 0
+    }
+  ],
+  "status": "Experimental integration, not release-ready. Strong performance regression in extended run; no protected write confirmed by live logs. Synthetic guard writes pass.",
+  "issues": [
+    "Initial branch omitted GPU-modified tracking cleanup; restored before subsequent runs.",
+    "Null tree children accepted after inspection of legitimate equal-key nodes.",
+    "Busy/invalid heaps follow normal unguarded readback path; coverage is best effort.",
+    "VMA read pin and allocator lock do not synchronize guest heap destruction; lifetime needs explicit validation."
+  ],
+  "user_visual_confirmation": "User reported missing audio during experimental testing; confirmed audio returned with validated preview and guard off.",
+  "audio_baseline": {
+    "package": "SotC-PC-linux-x86_64-e7e679f64ad3-20ca024e9d9f",
+    "guard": "off",
+    "timeout_seconds": 30,
+    "user_report": "audio returned",
+    "backend": "pipewire",
+    "port0_nonzero_samples": 299505,
+    "port0_peak": 0.03297213464975357,
+    "observed_5s_buffers": 938,
+    "expected_5s_buffers": 937,
+    "observed_starvation_count": 0,
+    "log": "out/teste-gameplay-preview-atual/game-audio-baseline.log",
+    "note": "Different binaries/configurations; observation does not isolate the audio regression cause."
+  }
+}

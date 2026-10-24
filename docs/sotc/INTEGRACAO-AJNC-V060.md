@@ -370,6 +370,60 @@ em `docs/validation/2026-10-24-bpe-external.json`. Próxima etapa: integrar
 regiões e seleção de classe à guarda, com testes do renderer e da política
 de invalidação/sincronização. A guarda Linux continua desativada.
 
+### Integração experimental de readbacks Linux — 2026-10-24
+
+`SOTC_HEAP_GUARD_LINUX=1` habilita um caminho experimental no renderer e
+no runtime. O padrão continua desligado; a opção não está no AppImage já
+publicado e não deve ser tratada como proteção pronta para distribuição.
+
+O runtime identifica a classe, fixa os mapeamentos com o read lock de VMAs
+e tenta adquirir uma única vez o mutex apontado por `heap+0x70`, usando a
+mesma transição 0 -> UINT64_MAX das instruções do alocador. Não espera por
+um mutex ocupado. Revalida classe, mutex e entrada da tabela, lê regiões
+sob esse lock e chama o renderer; libera o mutex e o pin após o callback,
+inclusive ao rejeitar uma lista. Heaps ocupados/ilegíveis seguem pelo
+readback normal, sem proteção: a cobertura é oportunista, não garantida.
+Destruição concorrente do objeto de heap ainda exige validação específica.
+
+A guarda recebe regiões explícitas e um leitor seguro para objetos globais;
+refaz árvore e headers em cada escrita, sem manter backing pointers entre
+chamadas. Verifica mapeamento antes de escrever, preserva headers e links
+da árvore livre, e recusa metadados inconsistentes. Trechos fora das regiões
+continuam pelo caminho normal. O renderer atualiza GPU-modified e readbacks
+inflight como no caminho preexistente. Exceções C++ não atravessam o callback C.
+
+Validação: build de `bbgpu`/loader, 108 testes SotC (107 passaram, um skip
+do leitor kernel no sandbox), os 12 testes do inventário passaram fora do
+sandbox, e os 14 testes do loader passaram contra o novo executável.
+O teste C++ executa a guarda real em memória sintética: headers, links
+livres, mudança do estado entre chamadas, filhos nulos legítimos e rejeição
+antes de escrever quando a cadeia é inconsistente. Fixtures também
+verificam lock ocupado e liberação do mutex/pin após snapshot inválido.
+
+A primeira execução ficou sem FPS: a integração havia omitido a limpeza
+de rastreamento GPU-modified, restaurada antes dos testes seguintes.
+Uma execução posterior de dois minutos iniciou, mas apresentou regressão
+forte de desempenho. A captura final curta confirmou locks adquiridos e
+frames, porém não confirmou escrita protegida no log. Foi acrescentado
+motivo de rejeição para investigar esse caminho. Portanto, não considerar
+proteção real ou estabilidade prolongada validadas. Resumo das capturas em
+`docs/validation/2026-10-24-scoped-guard.json`.
+
+O usuário relatou ausência de áudio durante a investigação experimental.
+Ao executar novamente o preview validado, com a guarda desligada, confirmou
+que o áudio voltou. A captura PCM da porta principal continha 299.505
+amostras não nulas (pico 0,03297); estatísticas registraram 938 buffers/5 s
+para 937 esperados e nenhuma starvation observada. Nenhum volume ou
+roteamento do sistema foi alterado. A diferença de executáveis/configuração
+não isola a causa; esse resultado reforça manter o protótipo fora do padrão.
+Uma captura posterior de rejeições localizou `free-tree-invalid`; foram
+acrescentados motivos mais específicos para a próxima investigação.
+
+Pendências: confirmar escritas protegidas em gameplay, reduzir o custo das
+varreduras/leituras e o tempo sob lock, exercitar destruição e remapeamento,
+e repetir carregamentos, colossos e pós-créditos antes de alterar o padrão
+ou produzir um novo pacote com a opção habilitada.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:

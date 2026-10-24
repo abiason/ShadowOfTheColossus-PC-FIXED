@@ -56,5 +56,8 @@ class HeapWatchTests(unittest.TestCase):
     def test_external_regions_require_complete_physical_block_chains(self):
         self.run_case('external')
 
+    def test_guard_holds_mapping_pin_and_allocator_lock_and_skips_busy_heap(self):
+        self.run_case('guard')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')

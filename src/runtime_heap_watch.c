@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #endif
 #include "runtime_heap_watch.h"
+#include "runtime_heap_guard.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -279,6 +280,63 @@ static int watch_read(void *context, uintptr_t address, void *out, size_t size) 
     return 1;
 }
 
+static HeapWatch guard_watch;
+static int guard_enabled;
+void runtime_memory_read_pin(void);
+void runtime_memory_read_unpin(void);
+
+void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
+    const char *enabled=getenv("SOTC_HEAP_GUARD_LINUX");
+    guard_enabled=0;
+    if (!enabled || strcmp(enabled,"1") || !image || size<0x2dfca78+8 ||
+        size>UINTPTR_MAX-image) return;
+    guard_watch=(HeapWatch){.image=image,.size=size,.read_host=host_read};
+    if (!runtime_heap_is_bpe_class(image,size,image+0x1595b70,watch_read,&guard_watch)) return;
+    guard_enabled=1;
+    fprintf(stderr,"SOTC HEAP GUARD: experimental scoped Linux readbacks enabled\n");
+}
+
+void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) {
+    if (!guard_enabled || !visit) return;
+    RuntimeHeapSample heaps[SOTC_HEAP_SLOTS];
+    const size_t n=runtime_heap_inventory(guard_watch.image+0x2dfaab0,watch_read,&guard_watch,
+                                         heaps,SOTC_HEAP_SLOTS);
+    for (size_t i=0;i<n;++i) {
+        const RuntimeHeapSample *s=&heaps[i];
+        if (!s->readable || !runtime_heap_is_bpe_class(guard_watch.image,guard_watch.size,
+                                                       s->class_address,watch_read,&guard_watch)) continue;
+        runtime_memory_read_pin();
+        uint64_t mutex_address=0;
+        if (!watch_read(&guard_watch,s->address+0x70,&mutex_address,8) || !mutex_address ||
+            (mutex_address&7)) { runtime_memory_read_unpin(); continue; }
+        uintptr_t lo=0,hi=0; int mapped=0;
+        if (!runtime_memory_region((uintptr_t)mutex_address,&lo,&hi,&mapped) || !mapped ||
+            mutex_address<lo || hi-mutex_address<8) { runtime_memory_read_unpin(); continue; }
+        uint64_t *mutex=(uint64_t *)(uintptr_t)runtime_memory_backing_pointer((uintptr_t)mutex_address);
+        uint64_t expected=0;
+        if (!mutex || !__atomic_compare_exchange_n(mutex,&expected,UINT64_MAX,0,
+                                                    __ATOMIC_ACQUIRE,__ATOMIC_RELAXED)) {
+            runtime_memory_read_unpin(); continue;
+        }
+        uint64_t current_class=0,current_mutex=0,table_entry=0;
+        RuntimeHeapRegion regions[1024]; size_t count=0; const char *status;
+        if (watch_read(&guard_watch,s->address,&current_class,8) && current_class==s->class_address &&
+            watch_read(&guard_watch,s->address+0x70,&current_mutex,8) && current_mutex==mutex_address &&
+            watch_read(&guard_watch,guard_watch.image+0x2dfaab0+s->id*8,&table_entry,8) &&
+            table_entry==s->address &&
+            runtime_bpe_all_regions(s->address,watch_read,&guard_watch,regions,1024,&count,&status)) {
+            RuntimeGuardRegion ranges[1024];
+            for (size_t j=0;j<count;++j) ranges[j]=(RuntimeGuardRegion){regions[j].base,regions[j].bytes};
+            static unsigned long reports;
+            if (__atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<4)
+                fprintf(stderr,"SOTC HEAP GUARD: locked heap %u, %zu regions\n",s->id,count);
+            visit(context,s->address,ranges,count,watch_read,&guard_watch);
+        }
+        __atomic_store_n(mutex,0,__ATOMIC_RELEASE);
+        runtime_memory_read_unpin();
+    }
+}
+
 static void *watch_main(void *unused) {
     (void)unused;
     pthread_setname_np(pthread_self(),"sotc:HeapWatch");
@@ -368,6 +426,8 @@ int runtime_heap_watch_start(uintptr_t image, uint64_t image_size) {
     return 1;
 }
 #else
+void runtime_heap_guard_start(uintptr_t image, uint64_t size) { (void)image; (void)size; }
+void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) { (void)visit; (void)context; }
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size) {
     (void)image; (void)image_size;
     return 0;

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -28,6 +29,15 @@ class BpeHeapGuard {
 public:
     BpeHeapGuard(Core::MemoryManager* memory, VAddr heap);
 
+    using Region = std::pair<VAddr, u64>; // base, byte count
+    // Caller must hold the allocator lock and keep mappings alive through TryWrite.
+    // No backing pointers or allocator metadata survive a scoped write.
+    using Reader = bool (*)(void*, VAddr, void*, u64);
+    BpeHeapGuard(Core::MemoryManager* memory, VAddr heap, std::span<const Region> regions,
+                 Reader reader = nullptr, void* reader_context = nullptr);
+    bool TryWrite(VAddr addr, const u8* data, u64 size, u64& kept);
+    const char* LastFailure() const { return failure; }
+
     bool IsValid() const {
         return valid;
     }
@@ -49,6 +59,13 @@ private:
     void CollectHeaders(VAddr lo, VAddr hi, std::vector<Span>& spans) const;
     bool NextBlock(VAddr block, VAddr& next) const;
 
+    bool Contains(VAddr addr, u64 size) const;
+    void Refresh();
+    std::vector<Region> regions;
+    bool scoped = false;
+    const char* failure = "none";
+    Reader reader = nullptr;
+    void* reader_context = nullptr;
     Core::MemoryManager* memory;
     VAddr heap;
     bool valid = false;

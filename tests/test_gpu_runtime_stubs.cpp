@@ -1,3 +1,4 @@
+#include "../src/runtime_heap_guard.h"
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <cstdlib>
 #include <chrono>
@@ -23,3 +24,6 @@ int32_t* runtime_errno() { std::abort(); }
 int runtime_memory_write_backing(uintptr_t, const void*, uint64_t) { std::abort(); }
 }
 
+
+
+extern "C" void runtime_heap_guard_visit(RuntimeGuardVisit, void*) {}

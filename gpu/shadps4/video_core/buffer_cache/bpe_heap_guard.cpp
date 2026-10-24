@@ -38,7 +38,90 @@ BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_)
     CollectFreeTree();
 }
 
+BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_,
+                           std::span<const Region> regions_, Reader reader_, void* context_)
+    : regions{regions_.begin(), regions_.end()}, scoped{true}, reader{reader_},
+      reader_context{context_}, memory{memory_}, heap{heap_} {
+    if (!memory || !heap || heap > HeapPointerHi - 0x1000 || regions.empty()) return;
+    std::sort(regions.begin(), regions.end());
+    VAddr end = 0;
+    for (const auto& [base, size] : regions) {
+        if (base < HeapPointerLo || base >= HeapPointerHi || !size ||
+            size > HeapPointerHi - base || base < end) return;
+        end = base + size;
+    }
+    valid = true;
+}
+
+bool BpeHeapGuard::Contains(VAddr addr, u64 size) const {
+    if (!size || addr > HeapPointerHi || size > HeapPointerHi - addr) return false;
+    return std::any_of(regions.begin(), regions.end(), [&](const Region& region) {
+        return addr >= region.first && addr - region.first < region.second &&
+               size <= region.second - (addr - region.first);
+    });
+}
+
+void BpeHeapGuard::Refresh() {
+    runs.clear();
+    free_blocks.clear();
+    free_spans.clear();
+    CollectFreeTree();
+}
+
+bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
+    kept = 0;
+    failure = "arguments-or-guard-invalid";
+    if (!scoped || !valid || !data || !size || size > HeapPointerHi ||
+        addr >= HeapPointerHi || size > HeapPointerHi - addr) return false;
+    failure = "range-not-fully-mapped";
+    if (memory->ClampRangeSize(addr, size) != size) return false;
+    // Refresh under the caller's allocator lock. Do not retain backing runs.
+    failure = "free-tree-invalid";
+    Refresh();
+    if (!valid) return false;
+    failure = "physical-chain-invalid";
+    std::vector<Span> spans;
+    for (const auto& [base, bytes] : regions) {
+        const VAddr lo = std::max(base, addr), hi = std::min(base + bytes, addr + size);
+        if (lo >= hi) continue;
+        auto part = CollectSpans(lo, hi);
+        spans.insert(spans.end(), part.begin(), part.end());
+    }
+    if (!valid) return false;
+    std::sort(spans.begin(), spans.end());
+    VAddr cursor = addr;
+    failure = "metadata-unreadable";
+    // All metadata reads must succeed before any guest byte is written.
+    for (const auto& [lo_, hi_] : spans) {
+        const VAddr lo = std::max({lo_, addr, cursor}), hi = std::min(hi_, addr + size);
+        if (lo >= hi) continue;
+        std::array<u8, FreeNodeSize> current{};
+        if (hi - lo > current.size() || !Read(lo, current.data(), hi - lo)) return false;
+        if (std::memcmp(current.data(), data + lo - addr, hi - lo)) kept += hi - lo;
+        cursor = hi;
+    }
+    failure = "backing-write-failed";
+    cursor = addr;
+    for (const auto& [lo_, hi_] : spans) {
+        const VAddr lo = std::max({lo_, addr, cursor}), hi = std::min(hi_, addr + size);
+        if (lo >= hi) continue;
+        if (lo > cursor && !memory->TryWriteBacking(std::bit_cast<void*>(cursor),
+                                                   data + cursor - addr, lo - cursor)) return false;
+        cursor = hi;
+    }
+    if (cursor < addr + size && !memory->TryWriteBacking(std::bit_cast<void*>(cursor),
+                              data + cursor - addr, addr + size - cursor)) return false;
+    runs.clear(); free_blocks.clear(); free_spans.clear();
+    failure = "none";
+    return true;
+}
+
 bool BpeHeapGuard::Read(VAddr addr, void* out, u64 size) const {
+    if (scoped) {
+        if (!Contains(addr, size) && !(addr >= heap && addr - heap < 0x1000 &&
+                                     size <= 0x1000 - (addr - heap))) return false;
+        return reader ? reader(reader_context, addr, out, size) : memory->TryReadBacking(addr, out, size);
+    }
     auto it = std::upper_bound(runs.begin(), runs.end(), addr,
                                [](VAddr value, const Run& run) { return value < run.start; });
     if (it == runs.begin() || addr - std::prev(it)->start >= std::prev(it)->size) {
@@ -65,7 +148,8 @@ bool BpeHeapGuard::Read(VAddr addr, void* out, u64 size) const {
 }
 
 bool BpeHeapGuard::IsHeapPointer(VAddr addr) const {
-    return addr >= HeapPointerLo && addr < HeapPointerHi && (addr & 7) == 0;
+    return addr >= HeapPointerLo && addr < HeapPointerHi && (addr & 7) == 0 &&
+           (!scoped || Contains(addr, 1));
 }
 
 void BpeHeapGuard::AddFreeBlock(VAddr block) {
@@ -75,7 +159,7 @@ void BpeHeapGuard::AddFreeBlock(VAddr block) {
 void BpeHeapGuard::CollectFreeTree() {
     const VAddr sentinel = heap + 0x80;
     VAddr root = 0;
-    Read(sentinel, &root, sizeof(root));
+    if (!Read(sentinel, &root, sizeof(root))) { if (scoped) { failure = "free-tree-root-unreadable"; valid = false; } return; }
     VAddr pending = 0;
     if (Read(heap + 0xc0, &pending, sizeof(pending)) && IsHeapPointer(pending)) {
         AddFreeBlock(pending);
@@ -85,17 +169,21 @@ void BpeHeapGuard::CollectFreeTree() {
     while (!stack.empty() && visited < MaxTreeNodes) {
         const VAddr node = stack.back();
         stack.pop_back();
-        if (node == sentinel || !IsHeapPointer(node)) {
+        if (!node || node == sentinel) continue;
+        if (!IsHeapPointer(node)) {
+            if (scoped) { failure = "free-tree-node-outside-regions"; valid = false; return; }
             continue;
         }
         std::array<u64, 7> words{};
         if (!Read(node - HeaderSize, words.data(), sizeof(words))) {
+            if (scoped) { failure = "free-tree-node-unreadable"; valid = false; return; }
             continue;
         }
         ++visited;
         const u64 key = words[1] & SizeMask;
         if (key == 0 || key >= MaxBlockSize) {
             // Already corrupted: still keep what is left of it, but do not follow its links
+            if (scoped) { failure = "free-tree-size-invalid"; valid = false; return; }
             AddFreeBlock(node - HeaderSize);
             continue;
         }
@@ -106,13 +194,16 @@ void BpeHeapGuard::CollectFreeTree() {
             AddFreeBlock(member - HeaderSize);
             VAddr next = 0;
             if (!Read(member + 0x10, &next, sizeof(next))) {
+                if (scoped) { failure = "free-tree-ring-unreadable"; valid = false; return; }
                 break;
             }
             member = next;
         }
+        if (scoped && member != node) { failure = "free-tree-ring-invalid"; valid = false; return; }
         stack.push_back(words[2]);
         stack.push_back(words[3]);
     }
+    if (scoped && !stack.empty()) { failure = "free-tree-walk-limit"; valid = false; return; }
     std::sort(free_blocks.begin(), free_blocks.end());
     free_blocks.erase(std::unique(free_blocks.begin(), free_blocks.end()), free_blocks.end());
     free_spans.reserve(free_blocks.size());
@@ -181,7 +272,34 @@ std::vector<BpeHeapGuard::Span> BpeHeapGuard::CollectSpans(VAddr addr, VAddr end
             spans.push_back(*it);
         }
     }
-    CollectHeaders(addr, end, spans);
+    if (scoped) {
+        for (const auto& [base, bytes] : regions) {
+            if (base >= end || base + bytes <= addr) continue;
+            std::array<u64, 2> header{};
+            if (!Read(base, header.data(), HeaderSize) || header[1] != 3) {
+                valid = false; return {};
+            }
+            spans.emplace_back(base, base + HeaderSize);
+            VAddr previous = base, block = base + HeaderSize;
+            bool terminal = false;
+            for (size_t step = 0; step < MaxTreeNodes; ++step) {
+                if (!Contains(block, HeaderSize) ||
+                    !Read(block, header.data(), HeaderSize) || header[0] != previous) break;
+                spans.emplace_back(block, block + HeaderSize);
+                const u64 payload = header[1] & SizeMask;
+                if (!payload) {
+                    terminal = header[1] == 1 && block + HeaderSize == base + bytes;
+                    break;
+                }
+                if (payload > bytes || block + HeaderSize > base + bytes ||
+                    payload > base + bytes - block - HeaderSize) break;
+                previous = block; block += HeaderSize + payload;
+            }
+            if (!terminal) { valid = false; return {}; }
+        }
+    } else {
+        CollectHeaders(addr, end, spans);
+    }
     std::sort(spans.begin(), spans.end());
     return spans;
 }

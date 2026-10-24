@@ -883,6 +883,11 @@ static void cache_region(size_t i) {
     region_cache[slot]=(CachedRegion){generation,vmas[i].start,vmas[i].end,vmas[i].kind,backing,run_end,run_exact};
     region_cache_last=slot;
 }
+/* Scoped GPU heap guard: prevent map/unmap while guest allocator lock is held.
+ * The existing read lock permits nested backing reads on the same thread. */
+void runtime_memory_read_pin(void) { read_lock(); }
+void runtime_memory_read_unpin(void) { read_unlock(); }
+
 /* sotc: generation of the mapping table; even and unchanged means no mapping changed, so
  * backing pointers obtained at that generation are still valid. */
 uint64_t runtime_memory_table_generation(void) {

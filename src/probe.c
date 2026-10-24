@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include "runtime.h"
 #include "runtime_heap_watch.h"
+#include "runtime_heap_guard.h"
 #include "gpu/bbgpu.h"
 #include "gpu/sotc/sotc_patches.h"
 #if !defined(__x86_64__) || !defined(__GNUC__)
@@ -1199,6 +1200,7 @@ int main(int argc, char **argv) {
         }
     }
     runtime_heap_watch_start((uintptr_t)image,size);
+    runtime_heap_guard_start((uintptr_t)image,size);
     printf("Entering original x86-64 code at guest offset 0x%" PRIx64 "\n", entry);
     entered_game=1;
     struct { uint64_t argc; const char *argv[2]; } params = {1, {"/app0/eboot.bin", NULL}};

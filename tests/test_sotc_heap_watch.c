@@ -48,11 +48,34 @@ static void reset(void) {
     read_calls=0; fail_second_chunk=0;
 }
 
+static int pins, callbacks;
+void runtime_memory_read_pin(void) { ++pins; }
+void runtime_memory_read_unpin(void) { assert(pins>0); --pins; }
+static void guarded_visit(void *context,uintptr_t address,const RuntimeGuardRegion *regions,
+                           size_t count,RuntimeGuardRead read,void *reader) {
+    (void)context; (void)regions;
+    assert(pins==1 && address==OBJECT && count==0);
+    uint64_t held=0;
+    assert(read(reader,UINT64_C(0x100000000),&held,8) && held==UINT64_MAX);
+    ++callbacks;
+}
+
 /* Synthetic guest mappings deliberately have separate physical backing arrays. */
 static const uintptr_t Guest=UINT64_C(0x100000000);
 static unsigned char backings[2][16];
 static int hole, inaccessible;
 static int fixture_host_read(uintptr_t address,void *out,size_t size) {
+    if (address>=ClassImage+0x2dfaab0 && address-ClassImage-0x2dfaab0<sizeof(table) &&
+        size<=sizeof(table)-(address-ClassImage-0x2dfaab0)) {
+        memcpy(out,(unsigned char *)table+address-ClassImage-0x2dfaab0,size); return 1;
+    }
+    if (address==ClassTable+0xa0 && size==sizeof(class_functions)) {
+        memcpy(out,class_functions,size); return 1;
+    }
+    if (address>=(uintptr_t)object && address-(uintptr_t)object<sizeof(object) &&
+        size<=sizeof(object)-(address-(uintptr_t)object)) {
+        memcpy(out,(void *)address,size); return 1;
+    }
     const uintptr_t base=(uintptr_t)backings;
     if (address<base || address-base>=sizeof(backings) ||
         size>sizeof(backings)-(address-base)) return 0;
@@ -60,6 +83,9 @@ static int fixture_host_read(uintptr_t address,void *out,size_t size) {
     return 1;
 }
 int runtime_memory_region(uintptr_t address,uintptr_t *start,uintptr_t *end,int *mapped) {
+    if (address>=OBJECT && address-OBJECT<sizeof(object)) {
+        *start=OBJECT; *end=OBJECT+sizeof(object); *mapped=1; return 1;
+    }
     if (address<Guest || address-Guest>=32) return 0;
     const size_t region=(address-Guest)/16;
     *start=Guest+region*16; *end=*start+16;
@@ -67,6 +93,7 @@ int runtime_memory_region(uintptr_t address,uintptr_t *start,uintptr_t *end,int 
     return 1;
 }
 const unsigned char *runtime_memory_backing_pointer(uintptr_t address) {
+    if (address>=OBJECT && address-OBJECT<sizeof(object)) return object+address-OBJECT;
     if (inaccessible) return (const unsigned char *)1;
     if (address<Guest || address-Guest>=32) return NULL;
     /* Reverse the physical order to rule out a single memcpy across guest VMAs. */
@@ -282,6 +309,29 @@ int main(int argc,char **argv) {
         memset(external,0,8); field(0xb8,External);
         assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
         assert(count==1 && regions[0].descriptor==ARENA);
+    } else if (!strcmp(argv[1],"guard")) {
+        class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
+        field(0,ClassTable); field(0x70,Guest);
+        field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
+        guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
+        guard_enabled=1;
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        assert(callbacks==1 && pins==0);
+        uint64_t mutex=123; memcpy(backings[1],&mutex,8);
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        assert(callbacks==1 && pins==0); /* Busy allocator is skipped, never waited on. */
+        memcpy(&mutex,backings[1],8); assert(mutex==123);
+        memset(backings[1],0,8);
+        field(0xb8,UINT64_MAX);
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        memcpy(&mutex,backings[1],8);
+        assert(callbacks==1 && pins==0 && mutex==0); /* Release after invalid snapshot. */
+        field(0xb8,0); guard_enabled=0;
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        assert(callbacks==1 && pins==0);
+        guard_enabled=1; field(0x70,0);
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        assert(callbacks==1 && pins==0);
     } else if (!strcmp(argv[1],"class")) {
         const uint64_t image_size=0x2000000;
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
