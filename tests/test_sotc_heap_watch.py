@@ -73,5 +73,14 @@ class HeapWatchTests(unittest.TestCase):
     def test_global_heap_mutex_in_loader_image_is_not_a_guest_vma(self):
         self.run_case('image-mutex')
 
+    def test_busy_batch_retries_with_all_resources_released_and_has_a_fixed_bound(self):
+        self.run_case('retry')
+
+    def test_retry_refreshes_inventory_after_a_heap_is_removed(self):
+        self.run_case('retry-removed')
+
+    def test_invalid_snapshot_after_retry_is_not_retried_again(self):
+        self.run_case('retry-invalid')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')

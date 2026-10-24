@@ -21,7 +21,9 @@ typedef struct {
 typedef void (*RuntimeGuardBatch)(void *, const RuntimeGuardOwner *, size_t,
                                   RuntimeGuardRead, void *);
 /* All recognized BPE owners are locked together, nonblocking, under one VMA
- * pin. Returns 0 without invoking the callback if inventory/locks are unstable.
+ * pin. Busy locks allow at most three complete attempts, yielding with every
+ * lock/pin released between attempts. Invalid snapshots are never retried.
+ * Returns 0 without invoking the callback if inventory/locks remain unstable.
  * A return of 0 is unprotected baseline behavior, not successful guarding. */
 int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context);
 void runtime_heap_guard_start(uintptr_t image, uint64_t size);

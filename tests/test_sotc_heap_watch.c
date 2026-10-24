@@ -58,6 +58,22 @@ void runtime_memory_read_pin(void) {
     if (change_class_on_pin) field(0,ClassTable+8);
 }
 void runtime_memory_read_unpin(void) { assert(pins>0); --pins; }
+static int retry_yields, release_on_yield, remove_on_yield, corrupt_on_yield;
+/* Deterministic scheduler interposition: inspect cleanup before another thread
+ * is modeled as releasing its lock, removing a heap or changing its regions. */
+int sched_yield(void) {
+    assert(pins==0 && word64(object+0x78)==0);
+    ++retry_yields;
+    if (release_on_yield && retry_yields==release_on_yield) {
+        uint64_t value=0;
+        memcpy(second+0x78,&value,8);
+        if (remove_on_yield) table[7]=0;
+        if (corrupt_on_yield) {
+            value=UINT64_MAX; memcpy(second+0xb8,&value,8);
+        }
+    }
+    return 0;
+}
 static void guarded_visit(void *context,uintptr_t address,const RuntimeGuardRegion *regions,
                            size_t count,RuntimeGuardRead read,void *reader) {
     (void)context; (void)regions;
@@ -158,6 +174,26 @@ static void batch_visit(void *opaque,const RuntimeGuardOwner *owners,size_t coun
     assert(read(reader,OBJECT+0x78,&a,8) && a==UINT64_MAX);
     assert(read(reader,SECOND+0x70,&b,8));
     assert(read(reader,b,&a,8) && a==UINT64_MAX);
+    ++callbacks;
+}
+
+static void init_batch_fixture(void) {
+    class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
+    field(0,ClassTable); field(0x70,OBJECT+0x78); field(0x78,0);
+    field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
+    memcpy(second,object,sizeof(second));
+    uint64_t value=SECOND+0x78; memcpy(second+0x70,&value,8);
+    value=SECOND+0x38; memcpy(second+0x40,&value,8); memcpy(second+0x48,&value,8);
+    table[7]=SECOND;
+    guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
+    guard_enabled=1;
+}
+static void retry_removed_visit(void *opaque,const RuntimeGuardOwner *owners,size_t count,
+                                RuntimeGuardRead read,void *reader) {
+    (void)opaque;
+    assert(pins==1 && count==1 && owners[0].heap==OBJECT);
+    uint64_t value=0;
+    assert(read(reader,OBJECT+0x78,&value,8) && value==UINT64_MAX);
     ++callbacks;
 }
 
@@ -495,16 +531,45 @@ int main(int argc,char **argv) {
         assert(!runtime_heap_guard_batch(image_batch_visit,NULL));
         assert(callbacks==1 && pins==0 && heap[0x68/8]==0);
         assert(!munmap(image_fixture,ImageFixtureSize));
+    } else if (!strcmp(argv[1],"retry")) {
+        init_batch_fixture();
+        uint64_t busy=123;
+        memcpy(second+0x78,&busy,8); release_on_yield=1;
+        assert(runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && retry_yields==1 && pins==0);
+        assert(word64(object+0x78)==0 && word64(second+0x78)==0);
+        assert(guard_batch_timing.visits==1 && guard_batch_timing.tries==2 &&
+               guard_batch_timing.recovered==1 && guard_batch_timing.bypassed==0);
+        memcpy(second+0x78,&busy,8); retry_yields=0; release_on_yield=2;
+        assert(runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==2 && retry_yields==2 && pins==0);
+        assert(guard_batch_timing.visits==2 && guard_batch_timing.tries==5 &&
+               guard_batch_timing.recovered==2 && guard_batch_timing.bypassed==0);
+        memcpy(second+0x78,&busy,8); retry_yields=0; release_on_yield=0;
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==2 && retry_yields==2 && pins==0);
+        assert(word64(object+0x78)==0 && word64(second+0x78)==123);
+        assert(guard_batch_timing.visits==3 && guard_batch_timing.tries==8 &&
+               guard_batch_timing.busy_exhausted==1 && guard_batch_timing.invalid==0);
+    } else if (!strcmp(argv[1],"retry-removed")) {
+        init_batch_fixture();
+        uint64_t busy=123; memcpy(second+0x78,&busy,8);
+        release_on_yield=1; remove_on_yield=1;
+        assert(runtime_heap_guard_batch(retry_removed_visit,NULL));
+        assert(callbacks==1 && retry_yields==1 && pins==0 && table[7]==0);
+        assert(word64(object+0x78)==0 && word64(second+0x78)==0);
+    } else if (!strcmp(argv[1],"retry-invalid")) {
+        init_batch_fixture();
+        uint64_t busy=123; memcpy(second+0x78,&busy,8);
+        release_on_yield=1; corrupt_on_yield=1;
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==0 && retry_yields==1 && pins==0);
+        assert(word64(object+0x78)==0 && word64(second+0x78)==0);
+        assert(guard_batch_timing.visits==1 && guard_batch_timing.tries==2 &&
+               guard_batch_timing.invalid==1 && guard_batch_timing.busy_exhausted==0);
     } else if (!strcmp(argv[1],"batch")) {
-        class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
-        field(0,ClassTable); field(0x70,OBJECT+0x78); field(0x78,0);
-        field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
-        memcpy(second,object,sizeof(second));
-        uint64_t value=SECOND+0x78; memcpy(second+0x70,&value,8);
-        value=SECOND+0x38; memcpy(second+0x40,&value,8); memcpy(second+0x48,&value,8);
-        table[7]=SECOND;
-        guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
-        guard_enabled=1;
+        init_batch_fixture();
+        uint64_t value=0;
         assert(runtime_heap_guard_batch(batch_visit,NULL));
         assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==0);
         value=123; memcpy(second+0x78,&value,8);

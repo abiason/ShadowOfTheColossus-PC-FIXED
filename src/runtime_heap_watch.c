@@ -275,6 +275,7 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
 
 #ifndef _WIN32
 #include <pthread.h>
+#include <sched.h>
 #include <errno.h>
 #include <sys/uio.h>
 #include <time.h>
@@ -371,8 +372,18 @@ void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
 
 /* Unlike the diagnostic per-owner visitor below, readback must see all owners
  * while all their locks are held. Never wait while holding another guest lock. */
-int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context) {
-    if (!guard_enabled || !visit) return 0;
+typedef struct {
+    const char *reason;
+    unsigned slot;
+    uint64_t mutex;
+    int busy;
+} GuardBatchFailure;
+typedef struct {
+    uint64_t start,visits,tries,locked,bypassed,recovered,busy_exhausted,invalid;
+} GuardBatchProfile;
+static _Thread_local GuardBatchProfile guard_batch_timing;
+
+static int guard_batch_try(RuntimeGuardBatch visit, void *context, GuardBatchFailure *failure) {
     uint64_t table[SOTC_HEAP_SLOTS], after[SOTC_HEAP_SLOTS];
     uint64_t classes[SOTC_HEAP_SLOTS]={0}, mutexes[SOTC_HEAP_SLOTS]={0};
     uint64_t *locks[SOTC_HEAP_SLOTS]; size_t locked=0, count=0;
@@ -419,7 +430,10 @@ int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context) {
             uint64_t expected=0;
             reason="mutex-busy";
             if (!__atomic_compare_exchange_n(mutex,&expected,UINT64_MAX,0,
-                                             __ATOMIC_ACQUIRE,__ATOMIC_RELAXED)) goto done;
+                                             __ATOMIC_ACQUIRE,__ATOMIC_RELAXED)) {
+                failure->busy=1;
+                goto done;
+            }
             locks[locked++]=mutex;
         }
     }
@@ -456,20 +470,49 @@ done:
     for (size_t i=0;i<count;++i) free((void *)owners[i].regions);
     while (locked) __atomic_store_n(locks[--locked],0,__ATOMIC_RELEASE);
     runtime_memory_read_unpin();
-    static _Thread_local uint64_t attempts,protected,bypassed,start;
+    failure->reason=reason; failure->slot=failed_slot; failure->mutex=failed_mutex;
+    return success;
+}
+
+int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context) {
+    if (!guard_enabled || !visit) return 0;
+    GuardBatchFailure failure={0};
+    int success=0;
+    unsigned tries=0;
+    for (;tries<3;) {
+        failure=(GuardBatchFailure){0};
+        ++tries;
+        success=guard_batch_try(visit,context,&failure);
+        if (success || !failure.busy || tries==3) break;
+        // The attempt has released every allocator lock, allocation and VMA
+        // pin. Start over after yielding: no identity/region snapshot survives.
+        // A guest waiting on this readback may hold the lock itself, so never
+        // wait indefinitely or retry invalid snapshots as if they were busy.
+        sched_yield();
+    }
+    GuardBatchProfile *p=&guard_batch_timing;
+    ++p->visits; p->tries+=tries;
+    if (success) {
+        ++p->locked;
+        if (tries>1) ++p->recovered;
+    } else {
+        ++p->bypassed;
+        if (failure.busy) ++p->busy_exhausted; else ++p->invalid;
+    }
     static unsigned reports;
-    ++attempts;
-    if (success) ++protected; else ++bypassed;
     if (!success && __atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<4)
         fprintf(stderr,"SOTC HEAP GUARD: batch unavailable (%s), heap=%u mutex=%#" PRIx64
-                       "; unprotected baseline readback\n",reason,failed_slot,failed_mutex);
+                       " tries=%u; unprotected baseline readback\n",
+                       failure.reason,failure.slot,failure.mutex,tries);
     if (guard_profile) {
         const uint64_t now=guard_clock();
-        if (!start) start=now;
-        if (now-start>=UINT64_C(5000000000)) {
+        if (!p->start) p->start=now;
+        if (now-p->start>=UINT64_C(5000000000)) {
             fprintf(stderr,"SOTC GUARD BATCH PROFILE: attempts=%" PRIu64 " locked=%" PRIu64
-                           " bypassed=%" PRIu64 "\n",attempts,protected,bypassed);
-            attempts=protected=bypassed=0; start=now;
+                           " bypassed=%" PRIu64 " lock_tries=%" PRIu64 " recovered=%" PRIu64
+                           " busy_exhausted=%" PRIu64 " invalid=%" PRIu64 "\n",
+                           p->visits,p->locked,p->bypassed,p->tries,p->recovered,p->busy_exhausted,p->invalid);
+            *p=(GuardBatchProfile){.start=now};
         }
     }
     return success;

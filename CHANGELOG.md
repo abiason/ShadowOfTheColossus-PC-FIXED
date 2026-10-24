@@ -2,6 +2,11 @@
 
 ## Em desenvolvimento — estabilidade AjncSystem 0.60
 
+- Guarda Linux experimental tenta recuperar contenção transitória em até três
+  tentativas, liberando locks e pin antes de ceder execução. Inventário refeito
+  a cada tentativa; contadores distinguem recuperação, contenção persistente
+  e snapshots inválidos. Fallback sem proteção ainda existe; padrão desligado.
+
 - Guarda Linux experimental combina metadados de heaps aninhados/sobrepostos
   sob locks simultâneos sem espera, incluindo mutexes globais da imagem.
   Preserva também controle do heap, descritores e mutexes no payload de outro

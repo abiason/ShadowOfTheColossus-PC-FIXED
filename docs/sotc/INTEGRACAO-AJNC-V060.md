@@ -737,3 +737,52 @@ controlada limitam a comparação. Não cobre colossos nem pós-créditos.
 Resumo, amostras, hashes e limitações em
 `docs/validation/2026-10-24-guard-combined.json`. Os testes CP (5) e atomics
 (2) também passaram após atualizar o stub da nova API de lote.
+
+
+## Recuperação limitada de contenção da guarda — 2026-10-24
+
+O caminho de readback inclui acessos síncronos da CPU. Adiar os dados ou
+esperar indefinidamente por um lock pode impedir a thread que aguarda o
+próprio readback de avançar. Não foi implementado descarte de dados GPU,
+limpeza antecipada de flags nem espera ilimitada para mascarar a contenção.
+
+A guarda experimental agora admite até três tentativas completas quando o
+CAS encontra um mutex ocupado. Antes de `sched_yield`, libera todos os locks,
+as alocações temporárias e o pin de VMAs. Cada tentativa reinicia a leitura da
+tabela, classificação, locks e inventário de regiões. Não reaproveita ponteiros
+nem snapshots da tentativa anterior. Falhas de identidade, tabela, mapeamento,
+regiões ou alocação não são tratadas como contenção e encerram o lote.
+
+O perfil preserva os campos `attempts` (lotes), `locked` e `bypassed`, e passa
+a mostrar `lock_tries`, `recovered`, `busy_exhausted` e `invalid`. Recuperação
+significa que um lote encontrou contenção, refez a tentativa e conseguiu
+executar o callback com todos os locks. Isso não afirma que toda a cópia foi
+protegida: validações adicionais do renderer ainda podem rejeitar peças.
+
+Três regressões determinísticas exercitam recuperação na segunda/terceira
+tentativa, término com lock persistentemente ocupado, ausência de pin/locks
+retidos no yield, inventário refeito após remoção de heap e interrupção ao
+receber um snapshot inválido na nova tentativa. O teste interpõe o scheduler
+para controlar essas mudanças; não simula tempos reais de threads do jogo.
+A suíte teve 116 testes, 115 aprovados e um skip da leitura kernel no sandbox.
+Os 14 testes do loader passaram com o novo binário. ASan/UBSan passaram nos
+casos retry, retry-removed, retry-invalid, batch, lifetime e image-mutex;
+LeakSanitizer ficou desativado pela limitação de ptrace do ambiente.
+
+A mudança reduz apenas a contenção transitória. Lotes que continuam ocupados
+após três tentativas ainda usam o fallback original **sem proteção**. Não
+resolve nem comprova o caso em que a própria thread suspensa pelo readback
+segura o lock. A guarda permanece desligada por padrão e a cobertura completa
+da contenção continua pendente. Não houve alteração dos AppImages existentes.
+
+Captura nativa adicional de 240 segundos, guarda ligada e três tentativas:
+média 47.25 FPS em 47 amostras, mínima por intervalo
+18.0 e máxima 60.0.
+Nas janelas completas: 135781 lotes, 135452 com locks obtidos,
+133 recuperados após contenção e 329 ainda ocupados após
+o limite; 0 snapshots inválidos. Nenhuma rejeição de escrita combinada
+registrada. O watchdog encerrou normalmente com 142; saves de origem e binários
+permaneceram iguais. Há contadores de starvation de áudio não nulos, sem
+confirmação auditiva humana. Não comparar a média de quatro minutos com uma
+captura curta como se fossem o mesmo percurso; não houve dupla A/B desta
+mudança. Evidências em `docs/validation/2026-10-24-guard-retry.json`.
