@@ -35,11 +35,16 @@ public:
     using Reader = bool (*)(void*, VAddr, void*, u64);
     BpeHeapGuard(Core::MemoryManager* memory, VAddr heap, std::span<const Region> regions,
                  Reader reader = nullptr, void* reader_context = nullptr,
-                 std::span<const Region> cached_regions = {});
+                 std::span<const Region> cached_regions = {},
+                 std::span<const Region> metadata_regions = {});
     // Caller must keep the same allocator lock and VMA pin until destruction.
     // Reuses metadata only within this single locked callback, never across visits.
     void UseLockedBatch() { locked_batch = true; }
     bool TryWrite(VAddr addr, const u8* data, u64 size, u64& kept);
+    // All owners' allocator locks and the VMA pin must remain held together.
+    // Validates every overlapping chain before writing; preserves the union.
+    static bool TryWriteCombined(std::span<BpeHeapGuard* const> owners, VAddr addr,
+                                 const u8* data, u64 size, u64& kept);
     const char* LastFailure() const { return failure; }
 
     bool IsValid() const {
@@ -65,7 +70,7 @@ private:
 
     bool Contains(VAddr addr, u64 size) const;
     void Refresh();
-    std::vector<Region> regions, cached_regions;
+    std::vector<Region> regions, cached_regions, metadata_regions;
     bool scoped = false;
     bool locked_batch = false, batch_ready = false;
     std::vector<std::vector<Span>> scoped_headers;

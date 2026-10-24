@@ -613,3 +613,127 @@ gráfica oculta aprovados, sem iniciar jogo nessa checagem. Os testes de
 do AppImage com gameplay do novo artefato. A guarda continua desligada
 por padrão. Resumo e hashes em
 `docs/validation/2026-10-24-guard-cached-package.json`.
+
+
+## Ciclo de vida e sobreposição de donos — 2026-10-24
+
+O teste sintético `lifetime` em `tests/test_sotc_heap_watch.c` verifica
+remoção de mapeamento entre visitas, mudança de classe antes da validação
+sob pin, heap reclassificado, recriação no mesmo endereço com outra região
+e mutex, e remoção da tabela. Callbacks não reutilizam o snapshot anterior;
+os locks são liberados nos caminhos exercitados. Isso não comprova segurança
+contra destruição concorrente durante o callback: falta confirmar o contrato
+de destruição do allocator real.
+
+Foi reproduzida uma limitação concreta de donos aninhados. Uma região filha
+válida dentro do payload alocado de uma região pai perde seu cabeçalho quando
+o pai recebe o readback primeiro. No caminho atual de `ApplyDownloads`, o
+intervalo coberto pelo pai impede a visita posterior do filho de corrigir essa
+escrita. A proteção individual dos cabeçalhos do pai não resolve a união de
+metadados dos donos sobrepostos. Ordenar heaps apenas pelo tamanho também
+não prova correção para vários intervalos com relações diferentes.
+
+`tests/repro_bpe_nested_ownership.cpp` reproduz o primeiro write dessa sequência
+usando a implementação real da guarda e memória sintética. A suíte exige
+preservação do cabeçalho filho, mas marca essa expectativa como falha conhecida
+(`expectedFailure`). Falhas de compilação ocorrem no setup e não podem passar
+como falha conhecida. Remover a marcação ao corrigir a coordenação dos donos.
+A suíte soma 111 testes: 109 passaram, um ignorado pela restrição de leitura
+kernel do ambiente, uma falha conhecida de ownership aninhado.
+
+A guarda permanece experimental e desligada por padrão. A comparação de FPS
+ligada/desligada foi adiada: medir a implementação com essa falha não valida a
+correção. Antes de habilitar, definir coordenação dos donos e locks sem espera,
+com identidade e mapeamentos estáveis durante a escrita, e testar ordem
+pai/filho, sobreposição parcial e dono ocupado. Não considerar fallback cru
+como proteção de metadados nesses casos.
+
+Validação adicional do payload AppDir do preview `1fac4ecc`: 240 segundos
+com guarda desligada, saves copiados e timeout programado (142).
+47 amostras de FPS: média 51.9, mínima 23.5,
+máxima 60.0. Estes são intervalos do log, não percentis por frame.
+Foram registradas 3 janelas de porta de áudio com starvation não nulo;
+não há confirmação auditiva humana desta captura. Saves de origem e hashes
+dos dois artefatos permaneceram iguais. O teste executou o conteúdo staged
+do AppImage, sem percorrer a entrada real do AppImage para iniciar gameplay.
+Não comprova colossos nem pós-créditos. Evidência em
+`docs/validation/2026-10-24-guard-lifetime-package.json`.
+
+
+## Guarda combinada para donos sobrepostos — 2026-10-24
+
+O readback Linux experimental agora usa `runtime_heap_guard_batch`. O runtime
+faz uma tentativa de aquisição por mutex distinto, sem espera, mantém todos
+os locks reconhecidos sob um único pin de VMAs e só então coleta as regiões.
+Revalida classe/mutex e compara a tabela completa antes do callback. Mutexes
+compartilhados são adquiridos uma vez. Falhas de aquisição, identidade, tabela,
+snapshot ou alocação liberam todos os locks adquiridos e não chamam o renderer.
+O visitante individual continua disponível para diagnósticos e seus testes.
+
+`BpeHeapGuard::TryWriteCombined` coleta os intervalos de metadados de todos os
+donos antes de qualquer escrita. O renderer não utiliza mais a política de
+primeiro dono/intervalo já coberto. A união preserva cabeçalhos e links livres,
+ids de debug e reservas recicláveis, independentemente da ordem dos heaps.
+Também preserva os primeiros 0xf0 bytes conhecidos do objeto heap, os oito bytes
+do mutex e os 0x68 bytes conhecidos de cada descritor de região gerenciada:
+essas estruturas podem ocupar payload de outro heap. Heaps sem regiões ainda
+contribuem com seus metadados de controle. Esses tamanhos descrevem os campos
+identificados do layout EU 1.01; não demonstram suporte a outras versões.
+
+O caso anteriormente marcado como `expectedFailure` agora passa normalmente.
+A regressão usa a implementação C++ real e exercita pai/filho nas duas ordens,
+sobreposição parcial com terminal fora do pai, donos duplicados, controle de
+heap filho vazio no payload do pai e rejeição de cadeia inválida sem escrita
+parcial pelo dono anterior. O teste C exercita locks simultâneos, mutex ocupado,
+identidade alterada, tabela alterada, snapshot inválido, mutex compartilhado e
+liberação dos locks/pin. A suíte totalizou 113 testes, 112 aprovados e um skip
+da leitura kernel no sandbox; os 14 testes do loader também passaram com o
+novo binário. ASan/UBSan passaram nos casos batch/lifetime/image-mutex e na regressão C++;
+LeakSanitizer foi desativado por não funcionar sob o ptrace deste ambiente.
+
+Limites ainda presentes: um lote sem todos os locks disponíveis segue o
+readback original **sem proteção**, com diagnóstico e contadores de bypass.
+A guarda não pode ser considerada cobertura completa desses casos. Mudanças
+entre visitas estão testadas; destruição concorrente durante o callback ainda
+exige comprovar o contrato real de lifetime do allocator. Guarda desligada
+por padrão. A correção não altera nem republica os AppImages já gerados.
+
+
+A primeira comparação nativa de 120 segundos por modo não ativou a proteção:
+59,34 FPS desligada e 59,27 ligada, com 65.448 tentativas nas janelas completas
+de perfil e zero lotes protegidos. Não usar essa captura para estimar custo
+da guarda. O diagnóstico apontou o heap 3 e seu mutex `heap+0x60` dentro da
+imagem do loader, fora das VMAs gerenciadas. O mutex estava presente; a falha
+era na resolução do endereço, não ausência de sincronização no jogo.
+
+A resolução agora aceita esse mutex embutido apenas no endereço `heap+0x60`,
+alinhado, inteiramente dentro da imagem de vida útil controlada pelo loader,
+com leitura segura prévia. Outros mutexes continuam exigindo backing de VMA
+válida. O teste `image-mutex` usa uma imagem real mapeada em memória, sem
+registro VMA, verifica aquisição/liberação, contenção e rejeição de outro
+offset. A captura curta posterior registrou escritas combinadas com três
+heaps e lotes efetivamente protegidos. A imagem permanece alocada durante o
+jogo; isso não resolve o contrato de destruição dos heaps dinâmicos.
+
+O tamanho protegido do controle BPE foi estendido até 0xf0: a alocação em
+`eboot+0x48f78` atualiza o contador em `heap+0xe8`, além da configuração e
+estatísticas em +0xd0/+0xd8/+0xe0. Não limitar a proteção aos campos usados
+pelo inventário de regiões até +0xc8.
+
+Comparação nativa após resolver o mutex global: duas capturas de 120 segundos,
+mesmo binário/biblioteca e cópias iniciais idênticas dos saves.
+Guarda desligada: média 59,30 FPS, mínima por intervalo 55,0, 23 amostras.
+Guarda ligada: média 56,72 FPS, mínima por intervalo 41,7, 23 amostras.
+Nas janelas completas com guarda ligada, 62811/62947 lotes
+obtiveram todos os locks (99.784%); 136 usaram fallback
+sem proteção. Nenhuma rejeição de escrita combinada foi registrada. Ambas
+terminaram pelo watchdog programado (142), sem assinatura de crash detectada.
+Houve contadores de starvation de áudio não nulos; não há confirmação auditiva
+humana desta captura. Saves de origem e binários permaneceram iguais.
+
+A dupla não prova uma regressão estável nem mede o custo isolado da guarda:
+ordem fixa, cache compartilhado, perfil ligado e ausência de repetição
+controlada limitam a comparação. Não cobre colossos nem pós-créditos.
+Resumo, amostras, hashes e limitações em
+`docs/validation/2026-10-24-guard-combined.json`. Os testes CP (5) e atomics
+(2) também passaram após atualizar o stub da nova API de lote.

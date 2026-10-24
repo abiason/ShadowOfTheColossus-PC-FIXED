@@ -1,0 +1,284 @@
+{
+  "date": "2026-10-24",
+  "scope": "native development binary, not packaged AppImage",
+  "route": "automatic attract demo; no scripted controller input",
+  "duration_per_run_seconds": 120,
+  "guard_default": "off",
+  "binaries": {
+    "out/validacao-ajnc-v060/bb-probe-guard-combined": "d7d035b09ee806394e7e97ccc8cef1a91c6107ebb1c491c800830b2678a7c16e",
+    "out/gpu/libbbgpu.so": "a707f4821b63e4bd5049c304e3e544db70818f8932d2a41d73fe9137f9024672"
+  },
+  "binaries_unchanged_during_pair": true,
+  "source_saves_unchanged": true,
+  "identical_initial_savedata": true,
+  "runs": [
+    {
+      "guard": "off",
+      "returncode": 142,
+      "termination": "programmed watchdog",
+      "fps": {
+        "samples": 23,
+        "mean_fps": 59.3,
+        "min_interval_fps": 55.0,
+        "max_interval_fps": 60.0
+      },
+      "fps_after_30_seconds": {
+        "samples": 17,
+        "mean_fps": 59.53,
+        "min_interval_fps": 56.0,
+        "max_interval_fps": 60.0
+      },
+      "fps_samples": [
+        {
+          "fps": 55.0,
+          "seconds": 5
+        },
+        {
+          "fps": 60.0,
+          "seconds": 10
+        },
+        {
+          "fps": 60.0,
+          "seconds": 15
+        },
+        {
+          "fps": 60.0,
+          "seconds": 20
+        },
+        {
+          "fps": 60.0,
+          "seconds": 25
+        },
+        {
+          "fps": 56.8,
+          "seconds": 30
+        },
+        {
+          "fps": 60.0,
+          "seconds": 35
+        },
+        {
+          "fps": 59.6,
+          "seconds": 40
+        },
+        {
+          "fps": 60.0,
+          "seconds": 45
+        },
+        {
+          "fps": 60.0,
+          "seconds": 50
+        },
+        {
+          "fps": 56.0,
+          "seconds": 55
+        },
+        {
+          "fps": 59.2,
+          "seconds": 60
+        },
+        {
+          "fps": 59.7,
+          "seconds": 65
+        },
+        {
+          "fps": 60.0,
+          "seconds": 70
+        },
+        {
+          "fps": 60.0,
+          "seconds": 75
+        },
+        {
+          "fps": 60.0,
+          "seconds": 80
+        },
+        {
+          "fps": 59.7,
+          "seconds": 85
+        },
+        {
+          "fps": 60.0,
+          "seconds": 90
+        },
+        {
+          "fps": 60.0,
+          "seconds": 95
+        },
+        {
+          "fps": 59.5,
+          "seconds": 100
+        },
+        {
+          "fps": 58.7,
+          "seconds": 105
+        },
+        {
+          "fps": 59.6,
+          "seconds": 110
+        },
+        {
+          "fps": 60.0,
+          "seconds": 115
+        }
+      ],
+      "batch_complete_profile_windows": {
+        "attempts": 0,
+        "locked": 0,
+        "bypassed": 0,
+        "lock_success_percent": null
+      },
+      "combined_write_rejection_logs": [],
+      "audio_nonzero_starvation_windows": [
+        "Audio stats port 1: 941 buffers/5s (expected 937), max gap 5.45 ms, min queued 0 bytes, starved 2",
+        "Audio stats port 0: 942 buffers/5s (expected 937), max gap 9.77 ms, min queued 0 bytes, starved 1",
+        "Audio stats port 17: 941 buffers/5s (expected 937), max gap 5.44 ms, min queued 0 bytes, starved 1"
+      ],
+      "crash_signature_logs": []
+    },
+    {
+      "guard": "on",
+      "returncode": 142,
+      "termination": "programmed watchdog",
+      "fps": {
+        "samples": 23,
+        "mean_fps": 56.72,
+        "min_interval_fps": 41.7,
+        "max_interval_fps": 60.0
+      },
+      "fps_after_30_seconds": {
+        "samples": 17,
+        "mean_fps": 56.14,
+        "min_interval_fps": 41.7,
+        "max_interval_fps": 60.0
+      },
+      "fps_samples": [
+        {
+          "fps": 54.8,
+          "seconds": 5
+        },
+        {
+          "fps": 60.0,
+          "seconds": 10
+        },
+        {
+          "fps": 60.0,
+          "seconds": 15
+        },
+        {
+          "fps": 60.0,
+          "seconds": 20
+        },
+        {
+          "fps": 60.0,
+          "seconds": 25
+        },
+        {
+          "fps": 55.5,
+          "seconds": 30
+        },
+        {
+          "fps": 60.0,
+          "seconds": 35
+        },
+        {
+          "fps": 59.0,
+          "seconds": 40
+        },
+        {
+          "fps": 59.9,
+          "seconds": 45
+        },
+        {
+          "fps": 54.7,
+          "seconds": 50
+        },
+        {
+          "fps": 50.5,
+          "seconds": 55
+        },
+        {
+          "fps": 56.0,
+          "seconds": 60
+        },
+        {
+          "fps": 56.3,
+          "seconds": 65
+        },
+        {
+          "fps": 57.8,
+          "seconds": 70
+        },
+        {
+          "fps": 59.4,
+          "seconds": 75
+        },
+        {
+          "fps": 59.5,
+          "seconds": 80
+        },
+        {
+          "fps": 58.7,
+          "seconds": 85
+        },
+        {
+          "fps": 60.0,
+          "seconds": 90
+        },
+        {
+          "fps": 60.0,
+          "seconds": 95
+        },
+        {
+          "fps": 60.0,
+          "seconds": 100
+        },
+        {
+          "fps": 41.7,
+          "seconds": 105
+        },
+        {
+          "fps": 43.6,
+          "seconds": 110
+        },
+        {
+          "fps": 57.2,
+          "seconds": 115
+        }
+      ],
+      "batch_complete_profile_windows": {
+        "attempts": 62947,
+        "locked": 62811,
+        "bypassed": 136,
+        "lock_success_percent": 99.784
+      },
+      "combined_write_rejection_logs": [],
+      "audio_nonzero_starvation_windows": [
+        "Audio stats port 1: 940 buffers/5s (expected 937), max gap 5.44 ms, min queued 0 bytes, starved 1",
+        "Audio stats port 0: 941 buffers/5s (expected 937), max gap 8.37 ms, min queued 0 bytes, starved 1",
+        "Audio stats port 17: 940 buffers/5s (expected 937), max gap 5.44 ms, min queued 0 bytes, starved 1"
+      ],
+      "crash_signature_logs": []
+    }
+  ],
+  "validation": {
+    "suite_total": 113,
+    "suite_passed": 112,
+    "suite_skipped": 1,
+    "expected_failures": 0,
+    "loader_tests_passed": 14,
+    "cp_wait_tests_passed": 5,
+    "atomic_float_tests_passed": 2,
+    "sanitizers": "ASan/UBSan passed: C batch, lifetime, image-mutex; C++ combined ownership",
+    "leak_sanitizer": "disabled: unsupported under environment ptrace"
+  },
+  "limitations": [
+    "One off/on pair, fixed order and shared warm shader cache; no statistical performance conclusion",
+    "FPS interval averages, not per-frame percentile measurements",
+    "Native development loader, not new AppImage gameplay",
+    "Busy or invalid batches retain unprotected baseline fallback",
+    "Heap destruction during callback still needs real allocator lifetime contract validation",
+    "No colossus/postcredits or human audiovisual confirmation in this pair",
+    "Batch counts cover complete profile windows, not the final partial window"
+  ]
+}

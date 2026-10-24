@@ -70,11 +70,11 @@ BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_)
 
 BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_,
                            std::span<const Region> regions_, Reader reader_, void* context_,
-                           std::span<const Region> cached_)
+                           std::span<const Region> cached_, std::span<const Region> metadata_)
     : regions{regions_.begin(), regions_.end()}, cached_regions{cached_.begin(), cached_.end()},
-      scoped{true}, reader{reader_},
+      metadata_regions{metadata_.begin(), metadata_.end()}, scoped{true}, reader{reader_},
       reader_context{context_}, memory{memory_}, heap{heap_} {
-    if (!memory || !heap || heap > HeapPointerHi - 0x1000 || regions.empty()) return;
+    if (!memory || !heap || heap > HeapPointerHi - 0x1000) return;
     if (!std::is_sorted(regions.begin(),regions.end()))
         std::sort(regions.begin(), regions.end());
     VAddr end = 0;
@@ -88,6 +88,11 @@ BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_,
         if (!std::binary_search(regions.begin(),regions.end(),cached_regions[i]) ||
             (i && cached_regions[i]==cached_regions[i-1])) return;
     }
+    // The heap control object can itself live in another owner's payload.
+    // EU 1.01 allocation updates counters through heap+0xe8.
+    metadata_regions.emplace_back(heap, 0xf0);
+    for (const auto& [base, bytes] : metadata_regions)
+        if (!base || base >= HeapPointerHi || !bytes || bytes > HeapPointerHi - base) return;
     valid = true;
 }
 
@@ -111,65 +116,86 @@ void BpeHeapGuard::Refresh() {
 }
 
 bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
+    BpeHeapGuard* owner = this;
+    return TryWriteCombined({&owner, 1}, addr, data, size, kept);
+}
+
+bool BpeHeapGuard::TryWriteCombined(std::span<BpeHeapGuard* const> owners, VAddr addr,
+                                   const u8* data, u64 size, u64& kept) {
     GuardWriteProfile profile;
     kept = 0;
-    failure = "arguments-or-guard-invalid";
-    if (!scoped || !valid || !data || !size || size > HeapPointerHi ||
+    if (owners.empty() || !owners.front()) return false;
+    auto& first = *owners.front();
+    first.failure = "arguments-or-guard-invalid";
+    if (!first.memory || !first.scoped || !first.valid || !data || !size ||
         addr >= HeapPointerHi || size > HeapPointerHi - addr) return false;
-    failure = "range-not-fully-mapped";
-    if (memory->ClampRangeSize(addr, size) != size) return false;
-    // Refresh under the caller's allocator lock. Do not retain backing runs.
-    failure = "metadata-invalid";
-    if (!locked_batch || !batch_ready) {
-        Refresh();
-        if (!valid) return false;
-        batch_ready = locked_batch;
-    }
-    failure = "physical-chain-invalid";
+    first.failure = "range-not-fully-mapped";
+    if (first.memory->ClampRangeSize(addr, size) != size) return false;
     std::vector<Span> spans;
-    for (const auto& [base, bytes] : regions) {
-        const VAddr lo = std::max(base, addr), hi = std::min(base + bytes, addr + size);
-        if (lo >= hi) continue;
-        auto part = CollectSpans(lo, hi);
+    // No write occurs until every owner has contributed its metadata. Parent
+    // payload can contain child headers; a first-owner-wins policy loses them.
+    for (auto* owner : owners) {
+        if (!owner || owner->memory != first.memory || !owner->scoped || !owner->valid) {
+            first.failure = "owner-invalid";
+            return false;
+        }
+        if (!owner->locked_batch || !owner->batch_ready) {
+            owner->Refresh();
+            owner->batch_ready = owner->locked_batch;
+        }
+        auto part = owner->CollectSpans(addr, addr + size);
+        if (!owner->valid) {
+            first.failure = "physical-chain-invalid";
+            return false;
+        }
         spans.insert(spans.end(), part.begin(), part.end());
     }
-    if (!valid) return false;
     std::sort(spans.begin(), spans.end());
     VAddr cursor = addr;
-    failure = "metadata-unreadable";
-    // All metadata reads must succeed before any guest byte is written.
+    first.failure = "metadata-unreadable";
+    // Read with the owner whose bounds contain the metadata; a parent need
+    // not contain a partially overlapping child's terminal header.
     for (const auto& [lo_, hi_] : spans) {
         const VAddr lo = std::max({lo_, addr, cursor}), hi = std::min(hi_, addr + size);
         if (lo >= hi) continue;
         std::array<u8, FreeNodeSize> current{};
-        if (hi - lo > current.size() || !Read(lo, current.data(), hi - lo)) return false;
+        if (hi - lo > current.size()) return false;
+        bool read = false;
+        for (auto* owner : owners) {
+            if (owner->Read(lo, current.data(), hi - lo)) {
+                read = true;
+                break;
+            }
+        }
+        if (!read) return false;
         if (std::memcmp(current.data(), data + lo - addr, hi - lo)) kept += hi - lo;
         cursor = hi;
     }
-    failure = "backing-write-failed";
+    first.failure = "backing-write-failed";
     profile.BeginWrite();
     cursor = addr;
     for (const auto& [lo_, hi_] : spans) {
         const VAddr lo = std::max({lo_, addr, cursor}), hi = std::min(hi_, addr + size);
         if (lo >= hi) continue;
-        if (lo > cursor && !memory->TryWriteBacking(std::bit_cast<void*>(cursor),
-                                                   data + cursor - addr, lo - cursor)) return false;
+        if (lo > cursor && !first.memory->TryWriteBacking(std::bit_cast<void*>(cursor),
+                                                          data + cursor - addr, lo - cursor)) return false;
         cursor = hi;
     }
-    if (cursor < addr + size && !memory->TryWriteBacking(std::bit_cast<void*>(cursor),
-                              data + cursor - addr, addr + size - cursor)) return false;
-    if (!locked_batch) {
-        runs.clear(); free_blocks.clear(); free_spans.clear();
-        scoped_headers.clear(); headers_ready.clear();
+    if (cursor < addr + size && !first.memory->TryWriteBacking(std::bit_cast<void*>(cursor),
+                                data + cursor - addr, addr + size - cursor)) return false;
+    for (auto* owner : owners) {
+        if (!owner->locked_batch) owner->Refresh();
+        owner->failure = "none";
     }
-    failure = "none";
     return true;
 }
 
 bool BpeHeapGuard::Read(VAddr addr, void* out, u64 size) const {
     if (scoped) {
-        if (!Contains(addr, size) && !(addr >= heap && addr - heap < 0x1000 &&
-                                     size <= 0x1000 - (addr - heap))) return false;
+        const bool metadata = std::any_of(metadata_regions.begin(), metadata_regions.end(),
+            [&](const Region& r) { return addr >= r.first && addr - r.first < r.second &&
+                                         size <= r.second - (addr - r.first); });
+        if (!Contains(addr, size) && !metadata) return false;
         return reader ? reader(reader_context, addr, out, size) : memory->TryReadBacking(addr, out, size);
     }
     auto it = std::upper_bound(runs.begin(), runs.end(), addr,
@@ -316,6 +342,15 @@ std::vector<BpeHeapGuard::Span> BpeHeapGuard::CollectSpans(VAddr addr, VAddr end
         }
     }
     if (scoped) {
+        // Slice large control objects: metadata comparison uses a bounded
+        // scratch buffer, while their union is still preserved without gaps.
+        for (const auto& [base, bytes] : metadata_regions) {
+            const VAddr lo = std::max(base,addr), hi = std::min(base+bytes,end);
+            for (VAddr at=lo;at<hi;) {
+                const VAddr next=at+std::min<u64>(FreeNodeSize,hi-at);
+                spans.emplace_back(at,next); at=next;
+            }
+        }
         for (size_t region_index = 0; region_index < regions.size(); ++region_index) {
             const auto [base, bytes] = regions[region_index];
             if (base >= end || base + bytes <= addr) continue;

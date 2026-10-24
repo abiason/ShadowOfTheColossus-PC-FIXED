@@ -1,0 +1,244 @@
+{
+  "date": "2026-10-24",
+  "package_source_commit": "1fac4ecc123516f5be5e01c8aec6292ec61e5340",
+  "scope": "staged AppImage payload; not actual AppImage entry gameplay",
+  "guard_enabled": false,
+  "programmed_timeout_seconds": 240,
+  "returncode": 142,
+  "termination": "programmed watchdog",
+  "fps_interval_samples": {
+    "samples": 47,
+    "mean": 51.9,
+    "min": 23.5,
+    "max": 60.0
+  },
+  "fps_samples_after_30_seconds": {
+    "samples": 41,
+    "mean": 50.96,
+    "min": 23.5,
+    "max": 60.0
+  },
+  "fps_samples": [
+    {
+      "fps": 53.5,
+      "seconds": 5
+    },
+    {
+      "fps": 60.0,
+      "seconds": 10
+    },
+    {
+      "fps": 60.0,
+      "seconds": 15
+    },
+    {
+      "fps": 60.0,
+      "seconds": 20
+    },
+    {
+      "fps": 60.0,
+      "seconds": 25
+    },
+    {
+      "fps": 56.7,
+      "seconds": 30
+    },
+    {
+      "fps": 60.0,
+      "seconds": 35
+    },
+    {
+      "fps": 59.9,
+      "seconds": 40
+    },
+    {
+      "fps": 60.0,
+      "seconds": 45
+    },
+    {
+      "fps": 60.0,
+      "seconds": 50
+    },
+    {
+      "fps": 57.0,
+      "seconds": 55
+    },
+    {
+      "fps": 58.4,
+      "seconds": 60
+    },
+    {
+      "fps": 60.0,
+      "seconds": 65
+    },
+    {
+      "fps": 60.0,
+      "seconds": 70
+    },
+    {
+      "fps": 59.7,
+      "seconds": 75
+    },
+    {
+      "fps": 60.0,
+      "seconds": 80
+    },
+    {
+      "fps": 60.0,
+      "seconds": 85
+    },
+    {
+      "fps": 60.0,
+      "seconds": 90
+    },
+    {
+      "fps": 60.0,
+      "seconds": 95
+    },
+    {
+      "fps": 60.0,
+      "seconds": 100
+    },
+    {
+      "fps": 59.2,
+      "seconds": 105
+    },
+    {
+      "fps": 60.0,
+      "seconds": 110
+    },
+    {
+      "fps": 60.0,
+      "seconds": 115
+    },
+    {
+      "fps": 57.9,
+      "seconds": 120
+    },
+    {
+      "fps": 51.3,
+      "seconds": 125
+    },
+    {
+      "fps": 49.5,
+      "seconds": 130
+    },
+    {
+      "fps": 58.2,
+      "seconds": 135
+    },
+    {
+      "fps": 50.0,
+      "seconds": 140
+    },
+    {
+      "fps": 56.0,
+      "seconds": 145
+    },
+    {
+      "fps": 58.3,
+      "seconds": 150
+    },
+    {
+      "fps": 54.5,
+      "seconds": 155
+    },
+    {
+      "fps": 33.7,
+      "seconds": 160
+    },
+    {
+      "fps": 56.8,
+      "seconds": 165
+    },
+    {
+      "fps": 48.3,
+      "seconds": 170
+    },
+    {
+      "fps": 50.1,
+      "seconds": 175
+    },
+    {
+      "fps": 44.5,
+      "seconds": 180
+    },
+    {
+      "fps": 23.5,
+      "seconds": 185
+    },
+    {
+      "fps": 24.7,
+      "seconds": 190
+    },
+    {
+      "fps": 25.6,
+      "seconds": 195
+    },
+    {
+      "fps": 28.4,
+      "seconds": 200
+    },
+    {
+      "fps": 35.1,
+      "seconds": 206
+    },
+    {
+      "fps": 41.2,
+      "seconds": 211
+    },
+    {
+      "fps": 44.6,
+      "seconds": 216
+    },
+    {
+      "fps": 45.6,
+      "seconds": 221
+    },
+    {
+      "fps": 45.0,
+      "seconds": 226
+    },
+    {
+      "fps": 43.2,
+      "seconds": 231
+    },
+    {
+      "fps": 49.0,
+      "seconds": 236
+    }
+  ],
+  "audio_nonzero_starvation_windows": [
+    "Audio stats port 1: 941 buffers/5s (expected 937), max gap 5.46 ms, min queued 0 bytes, starved 2",
+    "Audio stats port 0: 942 buffers/5s (expected 937), max gap 9.05 ms, min queued 0 bytes, starved 1",
+    "Audio stats port 17: 941 buffers/5s (expected 937), max gap 5.45 ms, min queued 0 bytes, starved 2"
+  ],
+  "audio_listening_confirmation": false,
+  "source_saves_unchanged": true,
+  "copied_saves_match_source_before_launch": true,
+  "artifacts": [
+    {
+      "path": "out/preview-guard-cached-20261024/SotC-PC-1fac4ecc1235-x86_64.AppImage",
+      "sha256": "3e26380aa66c9b60c34a89d90444ee4778487c717b1801f3635d4665160ab9f6",
+      "unchanged": true
+    },
+    {
+      "path": "out/preview-guard-cached-20261024/SotC-PC-linux-x86_64-1fac4ecc1235-e5472a33a6a8.tar.gz",
+      "sha256": "616b908e79fe0d940b4a9855daea5d50b138d7eb69b3501815a1703fc6af2fb5",
+      "unchanged": true
+    }
+  ],
+  "limitations": [
+    "No manual route or colossus/postcredits verification in this capture",
+    "FPS interval averages, not frame-time percentiles",
+    "No guard on/off comparison: nested ownership counterexample remains unresolved",
+    "Staged AppDir payload gameplay, not AppImage entry gameplay"
+  ],
+  "tests": {
+    "total": 111,
+    "passed": 109,
+    "skipped": 1,
+    "expected_failures": 1,
+    "known_failure": "parent-first nested owner metadata overwrite"
+  }
+}

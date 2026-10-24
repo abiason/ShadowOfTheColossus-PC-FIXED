@@ -2,11 +2,13 @@
 /* Include the implementation so the actual host/backing adapter is exercised too. */
 #include "../src/runtime_heap_watch.c"
 #include <assert.h>
+#include <sys/mman.h>
 
-enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000 };
+enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000, SECOND=0x60000 };
 static uint64_t table[SOTC_HEAP_SLOTS], bitmap[1024];
-static unsigned char object[0xd0], pools[SOTC_PAGE_POOLS][0xa0];
-static unsigned char external[0x20000];
+static unsigned char object[0xf0], pools[SOTC_PAGE_POOLS][0xa0];
+static unsigned char external[0x20000], second[0xf0];
+static int batch_table_reads, batch_change_table, batch_change_identity;
 static const uint64_t External=UINT64_C(0x100000000);
 static int read_calls, fail_second_chunk, mutate_list, mutate_cached, cached_reads;
 static const uintptr_t ClassImage=0x100000, ClassTable=0x1695b70;
@@ -50,8 +52,11 @@ static void reset(void) {
     read_calls=0; fail_second_chunk=0;
 }
 
-static int pins, callbacks;
-void runtime_memory_read_pin(void) { ++pins; }
+static int pins, callbacks, change_class_on_pin, lifetime_maps, lifetime_external;
+void runtime_memory_read_pin(void) {
+    ++pins;
+    if (change_class_on_pin) field(0,ClassTable+8);
+}
 void runtime_memory_read_unpin(void) { assert(pins>0); --pins; }
 static void guarded_visit(void *context,uintptr_t address,const RuntimeGuardRegion *regions,
                            size_t count,RuntimeGuardRead read,void *reader) {
@@ -62,6 +67,26 @@ static void guarded_visit(void *context,uintptr_t address,const RuntimeGuardRegi
     ++callbacks;
 }
 
+typedef struct { uint64_t expected_base,mutex; unsigned calls; } LifetimeContext;
+static void lifetime_visit(void *opaque,uintptr_t address,const RuntimeGuardRegion *regions,
+                            size_t count,RuntimeGuardRead read,void *reader) {
+    LifetimeContext *state=opaque;
+    assert(pins==1 && address==OBJECT && count==1);
+    assert(regions[0].base==state->expected_base && regions[0].bytes==0x10000);
+    assert(regions[0].flags==RUNTIME_GUARD_REGION_CACHED);
+    uint64_t held=0;
+    assert(read(reader,state->mutex,&held,8) && held==UINT64_MAX);
+    ++state->calls;
+}
+
+static void lifetime_batch_visit(void *opaque,const RuntimeGuardOwner *owners,size_t count,
+                                 RuntimeGuardRead read,void *reader) {
+    assert(count==1 && owners[0].metadata_count==3);
+    assert(owners[0].metadata[0].base==OBJECT && owners[0].metadata[0].bytes==0xf0);
+    assert(owners[0].metadata[2].base==ARENA && owners[0].metadata[2].bytes==0x68);
+    lifetime_visit(opaque,owners[0].heap,owners[0].regions,owners[0].count,read,reader);
+}
+
 /* Synthetic guest mappings deliberately have separate physical backing arrays. */
 static const uintptr_t Guest=UINT64_C(0x100000000);
 static unsigned char backings[2][16];
@@ -69,7 +94,9 @@ static int hole, inaccessible;
 static int fixture_host_read(uintptr_t address,void *out,size_t size) {
     if (address>=ClassImage+0x2dfaab0 && address-ClassImage-0x2dfaab0<sizeof(table) &&
         size<=sizeof(table)-(address-ClassImage-0x2dfaab0)) {
-        memcpy(out,(unsigned char *)table+address-ClassImage-0x2dfaab0,size); return 1;
+        memcpy(out,(unsigned char *)table+address-ClassImage-0x2dfaab0,size);
+        if (batch_change_table && ++batch_table_reads==2) ((uint64_t *)out)[7]=0;
+        return 1;
     }
     if (address==ClassTable+0xa0 && size==sizeof(class_functions)) {
         memcpy(out,class_functions,size); return 1;
@@ -85,6 +112,15 @@ static int fixture_host_read(uintptr_t address,void *out,size_t size) {
     return 1;
 }
 int runtime_memory_region(uintptr_t address,uintptr_t *start,uintptr_t *end,int *mapped) {
+    if (address>=SECOND && address-SECOND<sizeof(second)) {
+        *start=SECOND; *end=SECOND+sizeof(second); *mapped=1; return 1;
+    }
+    if (lifetime_maps && address>=ARENA && address-ARENA<sizeof(pools)) {
+        *start=ARENA; *end=ARENA+sizeof(pools); *mapped=1; return 1;
+    }
+    if (lifetime_maps && lifetime_external && address>=External && address-External<sizeof(external)) {
+        *start=External; *end=External+sizeof(external); *mapped=1; return 1;
+    }
     if (address>=OBJECT && address-OBJECT<sizeof(object)) {
         *start=OBJECT; *end=OBJECT+sizeof(object); *mapped=1; return 1;
     }
@@ -95,12 +131,52 @@ int runtime_memory_region(uintptr_t address,uintptr_t *start,uintptr_t *end,int 
     return 1;
 }
 const unsigned char *runtime_memory_backing_pointer(uintptr_t address) {
+    if (address>=SECOND && address-SECOND<sizeof(second)) {
+        if (batch_change_identity && address==SECOND+0x78) field(0,ClassTable+8);
+        return second+address-SECOND;
+    }
+    if (lifetime_maps && address>=ARENA && address-ARENA<sizeof(pools)) return (unsigned char *)pools+address-ARENA;
+    if (lifetime_maps && lifetime_external && address>=External && address-External<sizeof(external))
+        return external+address-External;
     if (address>=OBJECT && address-OBJECT<sizeof(object)) return object+address-OBJECT;
     if (inaccessible) return (const unsigned char *)1;
     if (address<Guest || address-Guest>=32) return NULL;
     /* Reverse the physical order to rule out a single memcpy across guest VMAs. */
     const size_t region=(address-Guest)/16;
     return backings[1-region]+(address-Guest)%16;
+}
+
+static void batch_visit(void *opaque,const RuntimeGuardOwner *owners,size_t count,
+                         RuntimeGuardRead read,void *reader) {
+    (void)opaque;
+    assert(pins==1 && count==2 && owners[0].heap==OBJECT && owners[1].heap==SECOND);
+    assert(owners[0].count==0 && owners[1].count==0);
+    assert(owners[0].metadata_count==2 && owners[1].metadata_count==2);
+    assert(owners[0].metadata[0].base==OBJECT && owners[0].metadata[0].bytes==0xf0);
+    assert(owners[0].metadata[1].base==OBJECT+0x78 && owners[0].metadata[1].bytes==8);
+    uint64_t a=0,b=0;
+    assert(read(reader,OBJECT+0x78,&a,8) && a==UINT64_MAX);
+    assert(read(reader,SECOND+0x70,&b,8));
+    assert(read(reader,b,&a,8) && a==UINT64_MAX);
+    ++callbacks;
+}
+
+static unsigned char *image_fixture;
+static const size_t ImageFixtureSize=0x3000000;
+static int image_fixture_read(uintptr_t address,void *out,size_t size) {
+    if (address<(uintptr_t)image_fixture || address-(uintptr_t)image_fixture>=ImageFixtureSize ||
+        size>ImageFixtureSize-(address-(uintptr_t)image_fixture)) return 0;
+    memcpy(out,(void *)address,size); return 1;
+}
+static void image_batch_visit(void *opaque,const RuntimeGuardOwner *owners,size_t count,
+                              RuntimeGuardRead read,void *reader) {
+    (void)opaque;
+    assert(pins==1 && count==1 && owners[0].count==0);
+    const uintptr_t address=(uintptr_t)image_fixture+0x2dfc700;
+    assert(owners[0].heap==address && owners[0].metadata[1].base==address+0x60);
+    uint64_t value=0;
+    assert(read(reader,address+0x60,&value,8) && value==UINT64_MAX);
+    ++callbacks;
 }
 
 int main(int argc,char **argv) {
@@ -396,6 +472,108 @@ int main(int argc,char **argv) {
         guard_timing.start=guard_clock()-UINT64_C(5000000000);
         runtime_heap_guard_visit(guarded_visit,NULL);
         assert(guard_timing.visits==0 && callbacks==1 && pins==0);
+    } else if (!strcmp(argv[1],"image-mutex")) {
+        image_fixture=mmap(NULL,ImageFixtureSize,PROT_READ|PROT_WRITE,
+                            MAP_PRIVATE|MAP_ANONYMOUS|MAP_32BIT,-1,0);
+        assert(image_fixture!=MAP_FAILED);
+        const uintptr_t image=(uintptr_t)image_fixture, address=image+0x2dfc700;
+        uint64_t *heap=(uint64_t *)address;
+        heap[0]=(uint64_t)image+0x1595b70;
+        heap[0x40/8]=address+0x38; heap[0x48/8]=address+0x38;
+        heap[0x70/8]=address+0x60;
+        uint64_t *functions=(uint64_t *)(image+0x1595b70+0xa0);
+        functions[0]=image+0x48c80; functions[1]=image+0x493d0;
+        ((uint64_t *)(image+0x2dfaab0))[3]=address;
+        guard_watch=(HeapWatch){.image=image,.size=ImageFixtureSize,.read_host=image_fixture_read};
+        guard_enabled=1;
+        assert(runtime_heap_guard_batch(image_batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && heap[0x60/8]==0);
+        heap[0x60/8]=123;
+        assert(!runtime_heap_guard_batch(image_batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && heap[0x60/8]==123);
+        heap[0x60/8]=0; heap[0x70/8]=address+0x68;
+        assert(!runtime_heap_guard_batch(image_batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && heap[0x68/8]==0);
+        assert(!munmap(image_fixture,ImageFixtureSize));
+    } else if (!strcmp(argv[1],"batch")) {
+        class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
+        field(0,ClassTable); field(0x70,OBJECT+0x78); field(0x78,0);
+        field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
+        memcpy(second,object,sizeof(second));
+        uint64_t value=SECOND+0x78; memcpy(second+0x70,&value,8);
+        value=SECOND+0x38; memcpy(second+0x40,&value,8); memcpy(second+0x48,&value,8);
+        table[7]=SECOND;
+        guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
+        guard_enabled=1;
+        assert(runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==0);
+        value=123; memcpy(second+0x78,&value,8);
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==123);
+        value=0; memcpy(second+0x78,&value,8);
+        batch_change_identity=1;
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==0);
+        batch_change_identity=0; field(0,ClassTable);
+        batch_change_table=1; batch_table_reads=0;
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==0);
+        batch_change_table=0;
+        value=UINT64_MAX; memcpy(second+0xb8,&value,8);
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==1 && pins==0 && word64(object+0x78)==0 && word64(second+0x78)==0);
+        value=0; memcpy(second+0xb8,&value,8);
+        // Shared mutex is acquired once, not mistaken for a busy second owner.
+        value=OBJECT+0x78; memcpy(second+0x70,&value,8);
+        assert(runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==2 && pins==0 && word64(object+0x78)==0);
+        guard_enabled=0;
+        assert(!runtime_heap_guard_batch(batch_visit,NULL));
+        assert(callbacks==2 && pins==0);
+    } else if (!strcmp(argv[1],"lifetime")) {
+        lifetime_maps=1; lifetime_external=1;
+        class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
+        field(0,ClassTable); field(0x70,OBJECT+0x78); field(0x78,0);
+        field(0x40,ARENA); field(0x48,ARENA); field(0x58,1);
+        field(0xb8,0); field(0xc8,External+0x10000);
+        uint64_t node[13]={0};
+        node[0]=ARENA; node[1]=OBJECT+0x38; node[2]=OBJECT+0x38; node[3]=OBJECT+0x38;
+        node[11]=0x10000; node[12]=External+0x10000;
+        memcpy(pools[0],node,sizeof(node));
+        uint64_t header[2]={0,0x10003}; memcpy(external+0x10000,header,16);
+        guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
+        guard_enabled=1;
+        LifetimeContext state={.expected_base=External+0x10000,.mutex=OBJECT+0x78};
+        runtime_heap_guard_visit(lifetime_visit,&state);
+        assert(state.calls==1 && pins==0 && word64(object+0x78)==0);
+        lifetime_external=0; /* Mapping is gone between visits: no old backing pointer is used. */
+        runtime_heap_guard_visit(lifetime_visit,&state);
+        assert(state.calls==1 && pins==0 && word64(object+0x78)==0);
+        lifetime_external=1; change_class_on_pin=1;
+        runtime_heap_guard_visit(lifetime_visit,&state);
+        assert(state.calls==1 && pins==0 && word64(object+0x78)==0);
+        change_class_on_pin=0;
+        runtime_heap_guard_visit(lifetime_visit,&state); /* Destroyed/retyped heap is ignored. */
+        assert(state.calls==1 && pins==0);
+        field(0,ClassTable); field(0x70,OBJECT+0x90); field(0x90,0);
+        field(0xc8,External); node[12]=External;
+        memcpy(pools[0],node,sizeof(node)); memcpy(external,header,16);
+        state.expected_base=External; state.mutex=OBJECT+0x90;
+        runtime_heap_guard_visit(lifetime_visit,&state);
+        assert(state.calls==2 && pins==0 && word64(object+0x78)==0 && word64(object+0x90)==0);
+        table[3]=0;
+        runtime_heap_guard_visit(lifetime_visit,&state);
+        assert(state.calls==2 && pins==0); /* Removed table entry does not survive a visit. */
+        table[3]=OBJECT;
+        assert(runtime_heap_guard_batch(lifetime_batch_visit,&state));
+        assert(state.calls==3 && pins==0 && word64(object+0x90)==0);
+        lifetime_external=0;
+        assert(!runtime_heap_guard_batch(lifetime_batch_visit,&state));
+        assert(state.calls==3 && pins==0 && word64(object+0x90)==0);
+        lifetime_external=1;
+        class_functions[0]^=8;
+        assert(!runtime_heap_guard_batch(lifetime_batch_visit,&state));
+        assert(state.calls==3 && pins==0 && word64(object+0x90)==0);
     } else if (!strcmp(argv[1],"class")) {
         const uint64_t image_size=0x2000000;
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;

@@ -64,5 +64,14 @@ class HeapWatchTests(unittest.TestCase):
     def test_cached_region_is_accounted_separately_from_active_chain(self):
         self.run_case('cached')
 
+    def test_guard_revalidates_removed_retyped_and_remapped_heaps_between_visits(self):
+        self.run_case('lifetime')
+
+    def test_batch_holds_all_locks_and_releases_on_busy_identity_table_and_snapshot_failure(self):
+        self.run_case('batch')
+
+    def test_global_heap_mutex_in_loader_image_is_not_a_guest_vma(self):
+        self.run_case('image-mutex')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')

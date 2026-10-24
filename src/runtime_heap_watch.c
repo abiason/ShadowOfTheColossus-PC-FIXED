@@ -369,6 +369,112 @@ void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
     fprintf(stderr,"SOTC HEAP GUARD: experimental scoped Linux readbacks enabled\n");
 }
 
+/* Unlike the diagnostic per-owner visitor below, readback must see all owners
+ * while all their locks are held. Never wait while holding another guest lock. */
+int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context) {
+    if (!guard_enabled || !visit) return 0;
+    uint64_t table[SOTC_HEAP_SLOTS], after[SOTC_HEAP_SLOTS];
+    uint64_t classes[SOTC_HEAP_SLOTS]={0}, mutexes[SOTC_HEAP_SLOTS]={0};
+    uint64_t *locks[SOTC_HEAP_SLOTS]; size_t locked=0, count=0;
+    RuntimeGuardOwner owners[SOTC_HEAP_SLOTS]={0};
+    const char *reason="inventory-unreadable";
+    int success=0;
+    unsigned failed_slot=0;
+    uint64_t failed_mutex=0;
+    runtime_memory_read_pin();
+    if (!guard_pinned_read(&guard_watch,guard_watch.image+0x2dfaab0,table,sizeof(table))) goto done;
+    for (unsigned i=0;i<SOTC_HEAP_SLOTS;++i) {
+        if (!table[i]) continue;
+        failed_slot=i; failed_mutex=0; reason="inventory-unreadable";
+        if (table[i]<0x10000 || table[i]>=(UINT64_C(1)<<40)-0xf0 || (table[i]&7) ||
+            !guard_pinned_read(&guard_watch,table[i],&classes[i],8)) goto done;
+        if (classes[i]!=guard_watch.image+0x1595b70) continue;
+        reason="class-unverified";
+        if (!runtime_heap_is_bpe_class(guard_watch.image,guard_watch.size,classes[i],
+                                       guard_pinned_read,&guard_watch)) goto done;
+        reason="mutex-unavailable";
+        if (!guard_pinned_read(&guard_watch,table[i]+0x70,&mutexes[i],8)) goto done;
+        failed_mutex=mutexes[i];
+        if (!mutexes[i] || (mutexes[i]&7)) goto done;
+        uint64_t *mutex=NULL;
+        if (mutexes[i]>=guard_watch.image && mutexes[i]-guard_watch.image<guard_watch.size &&
+            8<=guard_watch.size-(mutexes[i]-guard_watch.image)) {
+            // EU 1.01 global heaps embed their spinlock at +0x60. The loader
+            // owns this writable data segment for the entire game lifetime;
+            // it is deliberately absent from the guest VMA/backing registry.
+            uint64_t value=0;
+            if (mutexes[i]!=table[i]+0x60 ||
+                !guard_pinned_read(&guard_watch,mutexes[i],&value,8)) goto done;
+            mutex=(uint64_t *)(uintptr_t)mutexes[i];
+        } else {
+            uintptr_t lo=0,hi=0; int mapped=0;
+            if (!runtime_memory_region(mutexes[i],&lo,&hi,&mapped) || !mapped ||
+                mutexes[i]<lo || mutexes[i]>=hi || hi-mutexes[i]<8) goto done;
+            mutex=(uint64_t *)(uintptr_t)runtime_memory_backing_pointer(mutexes[i]);
+            if (!mutex) goto done;
+        }
+        size_t j=0;
+        for (;j<locked;++j) if (locks[j]==mutex) break;
+        if (j==locked) {
+            uint64_t expected=0;
+            reason="mutex-busy";
+            if (!__atomic_compare_exchange_n(mutex,&expected,UINT64_MAX,0,
+                                             __ATOMIC_ACQUIRE,__ATOMIC_RELAXED)) goto done;
+            locks[locked++]=mutex;
+        }
+    }
+    // Acquire first, then snapshot: an earlier owner cannot mutate while a
+    // later owner's regions/physical chain are being read.
+    for (unsigned i=0;i<SOTC_HEAP_SLOTS;++i) {
+        if (!mutexes[i]) continue;
+        failed_slot=i; failed_mutex=mutexes[i];
+        uint64_t current_class=0,current_mutex=0;
+        reason="identity-changed";
+        if (!guard_pinned_read(&guard_watch,table[i],&current_class,8) || current_class!=classes[i] ||
+            !guard_pinned_read(&guard_watch,table[i]+0x70,&current_mutex,8) || current_mutex!=mutexes[i]) goto done;
+        RuntimeHeapRegion regions[1024]; size_t n=0;
+        if (!runtime_bpe_all_regions(table[i],guard_pinned_read,&guard_watch,regions,1024,&n,&reason)) goto done;
+        RuntimeGuardRegion *ranges=malloc((2*n+2)*sizeof(*ranges));
+        reason="allocation-failed";
+        if (!ranges) goto done;
+        for (size_t j=0;j<n;++j)
+            ranges[j]=(RuntimeGuardRegion){regions[j].base,regions[j].bytes,regions[j].flags};
+        RuntimeGuardRegion *metadata=ranges+n;
+        size_t m=0;
+        metadata[m++]=(RuntimeGuardRegion){table[i],0xf0,0};
+        metadata[m++]=(RuntimeGuardRegion){mutexes[i],8,0};
+        for (size_t j=0;j<n;++j) if (regions[j].descriptor)
+            metadata[m++]=(RuntimeGuardRegion){regions[j].descriptor,0x68,0};
+        owners[count++]=(RuntimeGuardOwner){table[i],ranges,n,metadata,m};
+    }
+    reason="table-changed";
+    if (!guard_pinned_read(&guard_watch,guard_watch.image+0x2dfaab0,after,sizeof(after)) ||
+        memcmp(table,after,sizeof(table))) goto done;
+    visit(context,owners,count,guard_pinned_read,&guard_watch);
+    success=1;
+done:
+    for (size_t i=0;i<count;++i) free((void *)owners[i].regions);
+    while (locked) __atomic_store_n(locks[--locked],0,__ATOMIC_RELEASE);
+    runtime_memory_read_unpin();
+    static _Thread_local uint64_t attempts,protected,bypassed,start;
+    static unsigned reports;
+    ++attempts;
+    if (success) ++protected; else ++bypassed;
+    if (!success && __atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<4)
+        fprintf(stderr,"SOTC HEAP GUARD: batch unavailable (%s), heap=%u mutex=%#" PRIx64
+                       "; unprotected baseline readback\n",reason,failed_slot,failed_mutex);
+    if (guard_profile) {
+        const uint64_t now=guard_clock();
+        if (!start) start=now;
+        if (now-start>=UINT64_C(5000000000)) {
+            fprintf(stderr,"SOTC GUARD BATCH PROFILE: attempts=%" PRIu64 " locked=%" PRIu64
+                           " bypassed=%" PRIu64 "\n",attempts,protected,bypassed);
+            attempts=protected=bypassed=0; start=now;
+        }
+    }
+    return success;
+}
+
 void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) {
     if (!guard_enabled || !visit) return;
     const uint64_t visit_start=guard_profile ? guard_clock() : 0;
@@ -533,6 +639,7 @@ int runtime_heap_watch_start(uintptr_t image, uint64_t image_size) {
     return 1;
 }
 #else
+int runtime_heap_guard_batch(RuntimeGuardBatch visit, void *context) { (void)visit; (void)context; return 0; }
 void runtime_heap_guard_start(uintptr_t image, uint64_t size) { (void)image; (void)size; }
 void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) { (void)visit; (void)context; }
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size) {

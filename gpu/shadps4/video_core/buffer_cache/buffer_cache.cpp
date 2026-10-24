@@ -969,79 +969,69 @@ void BufferCache::ApplyDownloads(std::span<const ReadbackItem> pending, const u8
         return value && std::strcmp(value, "1") == 0;
     }();
     if (scoped_linux) {
-        struct Piece { VAddr address; const u8* data; u64 size; std::vector<std::pair<VAddr,VAddr>> covered; };
+        struct Piece { VAddr address; const u8* data; u64 size; bool written = false; };
         struct Context { Core::MemoryManager* memory; std::vector<Piece> pieces; } context{memory, {}};
         for (const auto& item : pending) for (const auto& copy : item.copies) {
             const VAddr dst = item.arena->cpu_addr + copy.srcOffset;
             const u8* src = mapped + (copy.dstOffset - mapped_offset);
             ForEachNonStackRange(dst, copy.size, [&](VAddr addr, u64 size) {
-                context.pieces.push_back({addr, src + addr - dst, size, {}});
+                context.pieces.push_back({addr, src + addr - dst, size});
             });
         }
-        runtime_heap_guard_visit([](void* opaque, uintptr_t heap, const RuntimeGuardRegion* ranges,
+        runtime_heap_guard_batch([](void* opaque, const RuntimeGuardOwner* owners,
                                      size_t count, RuntimeGuardRead read, void* read_context) {
             auto& ctx = *static_cast<Context*>(opaque);
             struct ReadContext { RuntimeGuardRead read; void* context; } reader{read, read_context};
             try {
-                std::vector<BpeHeapGuard::Region> regions, cached;
+                std::vector<BpeHeapGuard> guards;
+                guards.reserve(count);
                 for (size_t i = 0; i < count; ++i) {
-                    regions.emplace_back(ranges[i].base, ranges[i].bytes);
-                    if (ranges[i].flags & RUNTIME_GUARD_REGION_CACHED)
-                        cached.emplace_back(ranges[i].base,ranges[i].bytes);
-                }
-                BpeHeapGuard guard{ctx.memory, heap, regions,
-                    [](void* p, VAddr addr, void* out, u64 size) {
-                        auto& r = *static_cast<ReadContext*>(p);
-                        return r.read(r.context, addr, out, size) != 0;
-                    }, &reader, cached};
-                if (!guard.IsValid()) return;
-                guard.UseLockedBatch();
-                for (auto& piece : ctx.pieces) for (const auto& [base, bytes] : regions) {
-                    const VAddr lo = std::max(base, piece.address);
-                    const VAddr hi = std::min(base + bytes, piece.address + piece.size);
-                    if (lo >= hi) continue;
-                    // Do not write a byte twice if heap regions overlap between classes.
-                    std::sort(piece.covered.begin(), piece.covered.end());
-                    auto gaps = std::vector<std::pair<VAddr,VAddr>>{};
-                    VAddr cursor = lo;
-                    for (const auto& [a,b] : piece.covered) {
-                        if (b <= cursor || a >= hi) continue;
-                        if (a > cursor) gaps.emplace_back(cursor, std::min(a, hi));
-                        cursor = std::max(cursor, b);
+                    std::vector<BpeHeapGuard::Region> regions, cached, metadata;
+                    for (size_t j = 0; j < owners[i].metadata_count; ++j)
+                        metadata.emplace_back(owners[i].metadata[j].base, owners[i].metadata[j].bytes);
+                    for (size_t j = 0; j < owners[i].count; ++j) {
+                        const auto& range = owners[i].regions[j];
+                        regions.emplace_back(range.base, range.bytes);
+                        if (range.flags & RUNTIME_GUARD_REGION_CACHED)
+                            cached.emplace_back(range.base, range.bytes);
                     }
-                    if (cursor < hi) gaps.emplace_back(cursor, hi);
-                    piece.covered.reserve(piece.covered.size() + gaps.size());
-                    for (const auto& [a,b] : gaps) {
-                        u64 kept = 0;
-                        SotcStats::heap_guard_builds.fetch_add(1, std::memory_order_relaxed);
-                        if (guard.TryWrite(a, piece.data + a - piece.address, b - a, kept)) {
-                            piece.covered.emplace_back(a,b);
-                            static std::atomic<unsigned> reports{};
-                            if (reports.fetch_add(1, std::memory_order_relaxed) < 4)
-                                std::fprintf(stderr, "SOTC HEAP GUARD: scoped write %#llx +%llu, kept %llu metadata bytes\n",
-                                    static_cast<unsigned long long>(a), static_cast<unsigned long long>(b-a),
-                                    static_cast<unsigned long long>(kept));
-                        } else {
-                            static std::atomic<unsigned> rejected{};
-                            if (rejected.fetch_add(1, std::memory_order_relaxed) < 4)
-                                std::fprintf(stderr, "SOTC HEAP GUARD: scoped write rejected: %s\n", guard.LastFailure());
-                        }
+                    guards.emplace_back(ctx.memory, owners[i].heap, regions,
+                        [](void* p, VAddr addr, void* out, u64 size) {
+                            auto& r = *static_cast<ReadContext*>(p);
+                            return r.read(r.context, addr, out, size) != 0;
+                        }, &reader, cached, metadata);
+                    if (!guards.back().IsValid()) return;
+                    guards.back().UseLockedBatch();
+                }
+                std::vector<BpeHeapGuard*> combined;
+                for (auto& guard : guards) combined.push_back(&guard);
+                if (combined.empty()) return;
+                for (auto& piece : ctx.pieces) {
+                    u64 kept = 0;
+                    SotcStats::heap_guard_builds.fetch_add(1, std::memory_order_relaxed);
+                    if (BpeHeapGuard::TryWriteCombined(combined, piece.address, piece.data, piece.size, kept)) {
+                        piece.written = true;
+                        static std::atomic<unsigned> reports{};
+                        if (reports.fetch_add(1, std::memory_order_relaxed) < 4)
+                            std::fprintf(stderr, "SOTC HEAP GUARD: combined write %#llx +%llu, owners %zu, kept %llu metadata bytes\n",
+                                static_cast<unsigned long long>(piece.address),
+                                static_cast<unsigned long long>(piece.size), combined.size(),
+                                static_cast<unsigned long long>(kept));
+                    } else {
+                        static std::atomic<unsigned> rejected{};
+                        if (rejected.fetch_add(1, std::memory_order_relaxed) < 4)
+                            std::fprintf(stderr, "SOTC HEAP GUARD: combined write rejected: %s; unprotected baseline readback\n",
+                                         guards.front().LastFailure());
                     }
                 }
             } catch (...) {
-                // C runtime releases both locks after this callback returns.
-                // Uncovered bytes follow the normal readback path below.
+                // The C runtime releases every allocator lock and the VMA pin.
+                // Unwritten pieces retain the existing unprotected fallback.
             }
         }, &context);
-        for (auto& piece : context.pieces) {
-            std::sort(piece.covered.begin(), piece.covered.end());
-            VAddr cursor = piece.address;
-            const auto write = [&](VAddr a, VAddr b) {
-                if (a < b) memory->TryWriteBacking(std::bit_cast<void*>(a),
-                                                   piece.data + a - piece.address, b - a, 1);
-            };
-            for (const auto& [a,b] : piece.covered) { write(cursor,a); cursor = std::max(cursor,b); }
-            write(cursor,piece.address + piece.size);
+        for (const auto& piece : context.pieces) {
+            if (!piece.written)
+                memory->TryWriteBacking(std::bit_cast<void*>(piece.address), piece.data, piece.size, 1);
         }
         // Match the normal readback path: stale GPU-modified flags must not
         // trigger another download over newer CPU allocator state.

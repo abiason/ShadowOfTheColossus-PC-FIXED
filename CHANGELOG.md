@@ -2,6 +2,13 @@
 
 ## Em desenvolvimento — estabilidade AjncSystem 0.60
 
+- Guarda Linux experimental combina metadados de heaps aninhados/sobrepostos
+  sob locks simultâneos sem espera, incluindo mutexes globais da imagem.
+  Preserva também controle do heap, descritores e mutexes no payload de outro
+  heap. Casos ocupados mantêm fallback sem proteção; guarda desligada por padrão.
+  Regressões sintéticas, testes de lifetime e comparação nativa registrados
+  em `docs/validation/2026-10-24-guard-combined.json`.
+
 - Readbacks especulativos de regiões antigas desativados por padrão para
   evitar sobrescrever memória reutilizada pelo jogo.
 - Proteção do pool de texturas com histerese, quando os relatórios de alta

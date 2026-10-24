@@ -124,4 +124,5 @@ int main() {
     VideoCore::BpeHeapGuard bad_ranges{memory, Heap, overlap};
     assert(!bad_ranges.IsValid());
     std::cout << "BPE scoped readback guard: PASS\n";
+    return 0;
 }

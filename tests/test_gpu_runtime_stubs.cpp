@@ -27,3 +27,4 @@ int runtime_memory_write_backing(uintptr_t, const void*, uint64_t) { std::abort(
 
 
 extern "C" void runtime_heap_guard_visit(RuntimeGuardVisit, void*) {}
+extern "C" int runtime_heap_guard_batch(RuntimeGuardBatch, void*) { return 0; }
