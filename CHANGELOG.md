@@ -23,6 +23,9 @@
   Classe BPE identificada por tabela virtual e funções verificadas; slots
   3/7/18 confirmados em execução. Delimitação das regiões da guarda Linux
   permanece pendente.
+- Inventário BPE enumera listas de regiões gerenciadas com validação de
+  vínculos, limites e sobreposição. Captura confirmou regiões distribuídas;
+  blocos externos ainda exigem mapeamento antes de habilitar a guarda Linux.
 - Launcher grava eventos de sessão em `user/events.log`, com rotação,
   configuração solicitada, início/fim, desempenho e erros; módulo incluído
   no pacote Linux e testado com processos simulados.

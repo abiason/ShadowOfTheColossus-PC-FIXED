@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-24",
+  "timeout_seconds": 20,
+  "exit_code": 142,
+  "termination": "programmed SIGALRM watchdog",
+  "list_sentinel_heap_offset": "0x38",
+  "count_u32_heap_offset": "0x58",
+  "descriptor_base_offset": "0x60",
+  "descriptor_bytes_offset": "0x58",
+  "samples": [
+    "SOTC HEAP 3 @0x32dfc700: readable=1 class=0x31595b70 base=0x1150000020 bytes=157286400 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=1 candidate_pages=0 bpe_class=verified regions_status=valid regions=1 region_bytes=157286400 region0=0x1150000000+0x9600000",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x31595b70 base=0x1150000020 bytes=478150656 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=456 candidate_pages=0 bpe_class=verified regions_status=valid regions=456 region_bytes=478150656 region0=0x10ba700000+0x100000 region1=0x10ba600000+0x100000 region2=0x10ba500000+0x100000 region3=0x10b9b00000+0x100000",
+    "SOTC HEAP 18 @0x32ed3260: readable=1 class=0x31595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=0 region_bytes=0",
+    "SOTC HEAP 3 @0x32dfc700: readable=1 class=0x31595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=valid regions=44 region_bytes=202375168 region0=0x10dd900000+0x100000 region1=0x10dd100000+0x100000 region2=0x10de100000+0x100000 region3=0x12aec00000+0x100000",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x31595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10dfa00000+0x100000 region1=0x10df700000+0x100000 region2=0x10df500000+0x100000 region3=0x10df000000+0x100000",
+    "SOTC HEAP 18 @0x32ed3260: readable=1 class=0x31595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=0 region_bytes=0",
+    "SOTC HEAP 3 @0x32dfc700: readable=1 class=0x31595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=valid regions=44 region_bytes=202375168 region0=0x10dd900000+0x100000 region1=0x10dd100000+0x100000 region2=0x10de100000+0x100000 region3=0x12aec00000+0x100000",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x31595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10dfa00000+0x100000 region1=0x10df700000+0x100000 region2=0x10df500000+0x100000 region3=0x10df000000+0x100000",
+    "SOTC HEAP 18 @0x32ed3260: readable=1 class=0x31595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=0 region_bytes=0",
+    "SOTC HEAP 3 @0x32dfc700: readable=1 class=0x31595b70 base=0x1150000020 bytes=202375168 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=44 candidate_pages=0 bpe_class=verified regions_status=valid regions=44 region_bytes=202375168 region0=0x10dd900000+0x100000 region1=0x10dd100000+0x100000 region2=0x10de100000+0x100000 region3=0x12aec00000+0x100000",
+    "SOTC HEAP 7 @0x115960fd20: readable=1 class=0x31595b70 base=0x1150000020 bytes=723517440 page_pool=unavailable reason=page-count-invalid candidate_bitmap=0 candidate_words=690 candidate_pages=0 bpe_class=verified regions_status=valid regions=690 region_bytes=723517440 region0=0x10dfa00000+0x100000 region1=0x10df700000+0x100000 region2=0x10df500000+0x100000 region3=0x10df000000+0x100000",
+    "SOTC HEAP 18 @0x32ed3260: readable=1 class=0x31595b70 base=0x1150000020 bytes=4194304 page_pool=unavailable reason=word-count-invalid candidate_bitmap=0 candidate_words=0 candidate_pages=0 bpe_class=verified regions_status=valid regions=0 region_bytes=0"
+  ],
+  "fps_mean": 58.03,
+  "fatal_markers": [],
+  "guard_enabled": false,
+  "limitation": "Managed descriptor lists exclude externally supplied blocks; slot 18 has empty list with 4 MiB accounted. Concurrent samples are not atomic."
+}

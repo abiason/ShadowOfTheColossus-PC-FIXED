@@ -50,5 +50,8 @@ class HeapWatchTests(unittest.TestCase):
     def test_bpe_class_requires_matching_vtable_and_both_functions(self):
         self.run_case('class')
 
+    def test_bpe_regions_reject_partial_changed_and_overlapping_lists(self):
+        self.run_case('regions')
+
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')

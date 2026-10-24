@@ -6,7 +6,7 @@
 enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000 };
 static uint64_t table[SOTC_HEAP_SLOTS], bitmap[1024];
 static unsigned char object[0x68], pools[SOTC_PAGE_POOLS][0xa0];
-static int read_calls, fail_second_chunk;
+static int read_calls, fail_second_chunk, mutate_list;
 static const uintptr_t ClassImage=0x100000, ClassTable=0x1695b70;
 static uint64_t class_functions[2];
 static void field(size_t at,uint64_t value) { memcpy(object+at,&value,8); }
@@ -27,6 +27,7 @@ static int fixture_read(void *context,uintptr_t address,void *out,size_t size) {
     if (address==ClassTable+0xa0 && size==sizeof(class_functions)) source=class_functions;
     if (!source) return 0;
     memcpy(out,source,size);
+    if (mutate_list && address==OBJECT+0x38 && size==0x28) ((unsigned char *)out)[0]^=1;
     return 1;
 }
 static RuntimeHeapSample snapshot(void) {
@@ -198,6 +199,42 @@ int main(int argc,char **argv) {
         table[0]=ARENA+8;
         assert(runtime_page_pool_inventory(TABLE,fixture_read,NULL,out,4)==3);
         assert(!out[0].pool_valid); /* Do not silently treat root as the first bitmap. */
+    } else if (!strcmp(argv[1],"regions")) {
+        RuntimeHeapRegion regions[2]; size_t count; const char *status;
+        const uint64_t sentinel=OBJECT+0x38;
+        field(0x40,ARENA+0xa0); field(0x48,ARENA); field(0x58,2);
+        for (size_t i=0;i<2;++i) {
+            uint64_t values[13]={0};
+            values[0]=ARENA+i*0xa0; values[1]=i ? ARENA : sentinel;
+            values[2]=i ? sentinel : ARENA+0xa0; values[3]=sentinel;
+            values[11]=0x20000; values[12]=UINT64_C(0x100000000)+i*0x40000;
+            memcpy(pools[i],values,sizeof(values));
+        }
+        assert(runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==2 && !strcmp(status,"valid"));
+        assert(regions[0].base==UINT64_C(0x100000000) && regions[1].bytes==0x20000);
+        mutate_list=1;
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==0 && !strcmp(status,"list-changed")); mutate_list=0;
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,1,&count,&status));
+        assert(!count && !strcmp(status,"capacity-exceeded"));
+        pools[1][8]^=8;
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"links-inconsistent")); pools[1][8]^=8;
+        uint64_t overlap=UINT64_C(0x100000000);
+        memcpy(pools[1]+0x60,&overlap,8);
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"ranges-overlap"));
+        overlap=UINT64_MAX; memcpy(pools[1]+0x60,&overlap,8);
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"range-invalid"));
+        field(0x58,3);
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        field(0x58,0); field(0x40,sentinel); field(0x48,sentinel);
+        assert(runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"valid"));
+        assert(!runtime_bpe_heap_regions(OBJECT,NULL,NULL,regions,2,&count,&status));
+        assert(!runtime_bpe_heap_regions(OBJECT,fixture_read,NULL,regions,2,NULL,&status));
     } else if (!strcmp(argv[1],"class")) {
         const uint64_t image_size=0x2000000;
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;

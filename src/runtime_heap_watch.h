@@ -28,6 +28,16 @@ size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader rea
  * Classification only; it does not establish a contiguous guarded range. */
 int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t class_address,
                               RuntimeHeapReader read, void *context);
+typedef struct {
+    uint64_t descriptor, base, bytes;
+} RuntimeHeapRegion;
+/* Returns only complete, structurally consistent managed-descriptor lists.
+ * Externally supplied blocks may exist outside this list; an empty list does
+ * not establish an empty heap. Concurrent changes may occur after sampling.
+ * Caller must verify the BPE class. */
+int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *context,
+                             RuntimeHeapRegion *regions, size_t capacity,
+                             size_t *count, const char **status);
 /* Linux: optional SOTC_HEAP_WATCH=1 monitor; disabled by default. */
 int runtime_heap_watch_start(uintptr_t image, uint64_t image_size);
 #endif

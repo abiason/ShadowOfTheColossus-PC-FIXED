@@ -112,6 +112,54 @@ int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t cla
     return functions[0]==image+0x48c80 && functions[1]==image+0x493d0;
 }
 
+/* Managed region list: generic allocation links descriptors at heap+0x38
+ * (EU 1.01 +0x479ce); BPE obtains base/size from descriptor+0x60/+0x58
+ * (+0x4898e). The external block path (+0x48a10) bypasses this list. */
+int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *context,
+                             RuntimeHeapRegion *regions, size_t capacity,
+                             size_t *count, const char **status) {
+    if (count) *count=0;
+    if (status) *status="arguments-invalid";
+    if (!read || !regions || !capacity || !count || !status) return 0;
+    *status="heap-unreadable";
+    unsigned char header[0x60], after[0x28];
+    if (heap<0x10000 || heap>=(UINT64_C(1)<<40)-sizeof(header) || (heap&7) ||
+        !read(context,heap,header,sizeof(header))) return 0;
+    uint32_t expected;
+    memcpy(&expected,header+0x58,sizeof(expected));
+    *status="capacity-exceeded";
+    if (expected>capacity || expected>1024) return 0;
+    const uint64_t sentinel=heap+0x38;
+    uint64_t next=word64(header+0x48), previous=sentinel;
+    for (uint32_t i=0;i<expected;++i) {
+        *status="descriptor-address-invalid";
+        if (next<0x10000 || next>=(UINT64_C(1)<<40)-0x68 || (next&7) || next==sentinel) return 0;
+        unsigned char node[0x68];
+        *status="descriptor-unreadable";
+        if (!read(context,(uintptr_t)next,node,sizeof(node))) return 0;
+        *status="links-inconsistent";
+        if (word64(node)!=next || word64(node+8)!=previous || word64(node+0x18)!=sentinel) return 0;
+        const uint64_t base=word64(node+0x60), bytes=word64(node+0x58);
+        *status="range-invalid";
+        if (base<0x100000000 || base>=(UINT64_C(1)<<40) || (base&0xffff) ||
+            !bytes || (bytes&0xffff) || bytes>(UINT64_C(1)<<40)-base) return 0;
+        for (uint32_t j=0;j<i;++j) {
+            *status="ranges-overlap";
+            if (base<regions[j].base+regions[j].bytes && regions[j].base<base+bytes) return 0;
+        }
+        regions[i]=(RuntimeHeapRegion){.descriptor=next,.base=base,.bytes=bytes};
+        previous=next;
+        next=word64(node+0x10);
+    }
+    *status="links-inconsistent";
+    if (next!=sentinel || word64(header+0x40)!=previous) return 0;
+    *status="list-changed";
+    if (!read(context,heap+0x38,after,sizeof(after)) || memcmp(after,header+0x38,sizeof(after))) return 0;
+    *status="valid";
+    *count=expected;
+    return 1;
+}
+
 #ifndef _WIN32
 #include <pthread.h>
 #include <errno.h>
@@ -183,7 +231,22 @@ static void *watch_main(void *unused) {
                          s->pool_status,s->candidate_bitmap,s->candidate_words,s->candidate_pages);
             if (s->readable && runtime_heap_is_bpe_class(watch.image,watch.size,
                                                          s->class_address,watch_read,&watch))
-                fprintf(stderr," bpe_class=verified range=undetermined");
+            {
+                RuntimeHeapRegion regions[1024];
+                size_t count=0;
+                const char *status;
+                const int valid=runtime_bpe_heap_regions(s->address,watch_read,&watch,regions,
+                                                         1024,&count,&status);
+                fprintf(stderr," bpe_class=verified regions_status=%s regions=%zu",status,count);
+                if (valid) {
+                    uint64_t total=0;
+                    for (size_t j=0;j<count;++j) total+=regions[j].bytes;
+                    fprintf(stderr," region_bytes=%" PRIu64,total);
+                    for (size_t j=0;j<count && j<4;++j)
+                        fprintf(stderr," region%zu=%#" PRIx64 "+%#" PRIx64,
+                                j,regions[j].base,regions[j].bytes);
+                }
+            }
             fputc('\n',stderr);
         }
         RuntimeHeapSample pools[SOTC_PAGE_POOLS];

@@ -314,6 +314,33 @@ Loader diagnóstico compilado e nove testes passaram fora do sandbox.
 Captura curta em `out/teste-gameplay-preview-atual/game-bpe-class.log`;
 resumo versionado em `docs/validation/2026-10-23-bpe-class.json`.
 
+### Listas de regiões gerenciadas — 2026-10-24
+
+O caminho +0x479ce liga descritores à lista cujo sentinela é `heap+0x38`;
+`heap+0x48` aponta ao primeiro nó, `+0x40` ao último e `+0x58` é a contagem
+u32. Cada nó contém identidade em +0, anterior em +8, próximo em +0x10,
+dono/sentinela em +0x18, tamanho em +0x58 e base em +0x60. O caminho BPE
++0x4898e usa base e tamanho desse descritor para criar os headers da região.
+
+O monitor lê até 1024 descritores por heap, valida vínculos nos dois sentidos,
+contagem, alinhamento de 64 KiB, limites e ausência de sobreposição, e relê
+os campos da lista ao final. Qualquer falha devolve contagem zero com motivo,
+sem publicar uma lista parcial como válida. Continua sendo uma amostra
+concorrente, sem garantia de snapshot atômico ou proteção contra ABA.
+
+A captura real confirmou listas válidas nos slots 3 e 7, com totais iguais
+ao campo +0x30 naquele momento. O slot 3 tinha uma região de 150 MiB;
+o slot 7 tinha centenas de regiões separadas, frequentemente de 1 MiB.
+O slot 18 tinha lista vazia, mas +0x30 registrava 4 MiB. Portanto, a lista
+não representa necessariamente toda a memória do heap: +0x48a10 aceita
+blocos fornecidos por outro caminho e os liga a `heap+0xb8`. Esse caminho
+externo ainda precisa ser mapeado antes de aplicar a guarda de readbacks.
+
+Dez testes do inventário passaram fora do sandbox. Loader recompilado e
+captura de 20 segundos sem alteração da guarda Linux; resultado em
+`docs/validation/2026-10-24-bpe-regions.json`, log completo local em
+`out/teste-gameplay-preview-atual/game-bpe-regions.log`.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:
