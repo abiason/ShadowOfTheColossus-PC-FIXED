@@ -424,6 +424,46 @@ varreduras/leituras e o tempo sob lock, exercitar destruição e remapeamento,
 e repetir carregamentos, colossos e pós-créditos antes de alterar o padrão
 ou produzir um novo pacote com a opção habilitada.
 
+### Guarda por cadeia física das regiões — 2026-10-24
+
+A investigação detalhada encontrou anéis legítimos com mais de 1024 blocos
+de mesmo tamanho; o limite do protótipo gerava rejeições. A busca binária de
+regiões, a validação de sobreposição por ordenação e a leitura pela visão de
+backing sob o pin de VMAs reduziram o custo. Leituras de objetos da imagem
+continuam pelo leitor seguro do kernel. O teste do adaptador inclui VMAs
+com backing separado, lacuna e limites de endereço.
+
+A versão atual não percorre a árvore global para proteger um readback.
+Nas instruções EU 1.01, +0x48fac liga o bit 0 do tamanho ao alocar e
++0x49492 o desliga ao liberar. O caminho scoped verifica a cadeia física
+somente das regiões tocadas: preserva headers de 16 bytes, os primeiros
+até 40 bytes de payload dos blocos livres (links do alocador) e os quatro
+bytes finais do identificador de depuração quando o bit 2 está ligado
+(leitura em +0x49476). Tamanho, vínculo anterior e sentinela final devem
+formar uma cadeia consistente dentro da região; falhas não geram plano de
+escrita parcial. A guarda Windows preexistente mantém a varredura da árvore.
+
+Metadados já lidos podem ser reutilizados somente durante o mesmo callback,
+com o mutex do heap e o pin de VMAs mantidos. O objeto é destruído antes da
+liberação dos locks; não há cache de endereços de backing entre callbacks.
+O teste sintético cobre 1026 blocos livres, links cíclicos preservados sem
+segui-los, flags de ocupação, identificador de depuração, rejeição de cadeia
+física inconsistente antes da primeira escrita e redução de leituras no lote.
+
+A primeira captura da versão física confirmou escritas pelo caminho scoped,
+sem rejeições; o áudio registrou cadência regular. As primeiras escritas
+registradas tinham `kept 0`: esse contador mede somente bytes de metadados
+cujo valor GPU difere do CPU, não toda a extensão preservada. O teste não
+comprova que um caso real de corrupção tenha sido evitado. A opção
+`SOTC_HEAP_GUARD_LINUX=1` segue experimental e desligada por padrão.
+A sessão de 600 segundos registrou 119 amostras: média 41.49
+FPS, mínima 20.6 e máxima 60.0, sem rejeições ou falha fatal
+registrada. Os hashes dos binários e dos saves originais permaneceram iguais.
+As quedas continuam relevantes; não é uma comparação controlada com o
+caminho sem guarda. Destruição de heaps e regiões com donos aninhados
+continuam pendentes de validação específica. Resumo em
+`docs/validation/2026-10-24-guard-physical.json`.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:

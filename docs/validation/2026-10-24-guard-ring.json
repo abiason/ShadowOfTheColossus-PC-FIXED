@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-24",
+  "option": "SOTC_HEAP_GUARD_LINUX=1",
+  "default": "off",
+  "changes": [
+    "Binary region lookups; sorted overlap checks and bounded cycle hash table.",
+    "Backing reads under the held VMA pin; image reads retain process_vm_readv.",
+    "Equal-key ring traversal has a combined 65536-node budget and cycle detection.",
+    "Metadata/header reuse only inside a single held-lock callback; no cross-visit cache."
+  ],
+  "synthetic_tests": [
+    "108 SotC tests: 107 passed, kernel reader skipped in sandbox.",
+    "12 runtime tests passed outside sandbox.",
+    "C++ guard fixture: 1026-peer ring accepted, wrong cycle rejected without writes.",
+    "Repeated batch write performs fewer metadata reads; a new guard rebuilds state.",
+    "C++ guard and 11 C runtime cases passed ASan/UBSan."
+  ],
+  "short_session_user_report": "Image, audio and controls normal in final one-minute ring session.",
+  "extended_session_user_report": "Audio normal; specific colossus/post-credits report pending.",
+  "sessions": [
+    {
+      "log": "game-guard-search.log",
+      "fps_samples": 11,
+      "fps_mean": 42.21,
+      "fps_min": 23.6,
+      "fps_max": 60.0,
+      "write_reports": [],
+      "rejections": [
+        "free-tree-ring-invalid",
+        "free-tree-ring-invalid",
+        "free-tree-ring-invalid",
+        "free-tree-ring-invalid"
+      ],
+      "fatal_markers": [],
+      "programmed_timeout": true
+    },
+    {
+      "log": "game-guard-pinned.log",
+      "fps_samples": 11,
+      "fps_mean": 57.95,
+      "fps_min": 51.7,
+      "fps_max": 60.0,
+      "write_reports": [],
+      "rejections": [
+        "free-tree-ring-limit",
+        "arguments-or-guard-invalid",
+        "arguments-or-guard-invalid",
+        "free-tree-ring-limit"
+      ],
+      "fatal_markers": [],
+      "programmed_timeout": true
+    },
+    {
+      "log": "game-guard-ring.log",
+      "fps_samples": 11,
+      "fps_mean": 55.26,
+      "fps_min": 47.1,
+      "fps_max": 60.0,
+      "write_reports": [
+        "SOTC HEAP GUARD: scoped write 0x1080380000 +65536, kept 0 metadata bytes",
+        "SOTC HEAP GUARD: scoped write 0x1080390000 +59732, kept 0 metadata bytes",
+        "SOTC HEAP GUARD: scoped write 0x108039e970 +216508, kept 0 metadata bytes",
+        "SOTC HEAP GUARD: scoped write 0x1042719710 +200000, kept 0 metadata bytes"
+      ],
+      "rejections": [],
+      "fatal_markers": [],
+      "programmed_timeout": true
+    }
+  ],
+  "comparison_limit": "Sessions are not a controlled same-save/camera performance benchmark. Logged kept bytes count only metadata differing from GPU data, not all skipped metadata."
+}

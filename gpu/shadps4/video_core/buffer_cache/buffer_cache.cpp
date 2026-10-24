@@ -991,6 +991,7 @@ void BufferCache::ApplyDownloads(std::span<const ReadbackItem> pending, const u8
                         return r.read(r.context, addr, out, size) != 0;
                     }, &reader};
                 if (!guard.IsValid()) return;
+                guard.UseLockedBatch();
                 for (auto& piece : ctx.pieces) for (const auto& [base, bytes] : regions) {
                     const VAddr lo = std::max(base, piece.address);
                     const VAddr hi = std::min(base + bytes, piece.address + piece.size);

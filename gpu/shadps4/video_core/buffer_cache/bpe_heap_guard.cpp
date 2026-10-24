@@ -55,17 +55,21 @@ BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_,
 
 bool BpeHeapGuard::Contains(VAddr addr, u64 size) const {
     if (!size || addr > HeapPointerHi || size > HeapPointerHi - addr) return false;
-    return std::any_of(regions.begin(), regions.end(), [&](const Region& region) {
-        return addr >= region.first && addr - region.first < region.second &&
-               size <= region.second - (addr - region.first);
-    });
+    const auto it = std::upper_bound(regions.begin(), regions.end(), addr,
+        [](VAddr address, const Region& region) { return address < region.first; });
+    if (it == regions.begin()) return false;
+    const auto& region = *std::prev(it);
+    return addr >= region.first && addr - region.first < region.second &&
+           size <= region.second - (addr - region.first);
 }
 
 void BpeHeapGuard::Refresh() {
     runs.clear();
     free_blocks.clear();
     free_spans.clear();
-    CollectFreeTree();
+    scoped_headers.clear(); headers_ready.clear();
+    scoped_headers.resize(regions.size()); headers_ready.resize(regions.size());
+    if (!scoped) CollectFreeTree();
 }
 
 bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
@@ -76,9 +80,12 @@ bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
     failure = "range-not-fully-mapped";
     if (memory->ClampRangeSize(addr, size) != size) return false;
     // Refresh under the caller's allocator lock. Do not retain backing runs.
-    failure = "free-tree-invalid";
-    Refresh();
-    if (!valid) return false;
+    failure = "metadata-invalid";
+    if (!locked_batch || !batch_ready) {
+        Refresh();
+        if (!valid) return false;
+        batch_ready = locked_batch;
+    }
     failure = "physical-chain-invalid";
     std::vector<Span> spans;
     for (const auto& [base, bytes] : regions) {
@@ -111,7 +118,10 @@ bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
     }
     if (cursor < addr + size && !memory->TryWriteBacking(std::bit_cast<void*>(cursor),
                               data + cursor - addr, addr + size - cursor)) return false;
-    runs.clear(); free_blocks.clear(); free_spans.clear();
+    if (!locked_batch) {
+        runs.clear(); free_blocks.clear(); free_spans.clear();
+        scoped_headers.clear(); headers_ready.clear();
+    }
     failure = "none";
     return true;
 }
@@ -159,7 +169,7 @@ void BpeHeapGuard::AddFreeBlock(VAddr block) {
 void BpeHeapGuard::CollectFreeTree() {
     const VAddr sentinel = heap + 0x80;
     VAddr root = 0;
-    if (!Read(sentinel, &root, sizeof(root))) { if (scoped) { failure = "free-tree-root-unreadable"; valid = false; } return; }
+    Read(sentinel, &root, sizeof(root));
     VAddr pending = 0;
     if (Read(heap + 0xc0, &pending, sizeof(pending)) && IsHeapPointer(pending)) {
         AddFreeBlock(pending);
@@ -169,21 +179,17 @@ void BpeHeapGuard::CollectFreeTree() {
     while (!stack.empty() && visited < MaxTreeNodes) {
         const VAddr node = stack.back();
         stack.pop_back();
-        if (!node || node == sentinel) continue;
-        if (!IsHeapPointer(node)) {
-            if (scoped) { failure = "free-tree-node-outside-regions"; valid = false; return; }
+        if (node == sentinel || !IsHeapPointer(node)) {
             continue;
         }
         std::array<u64, 7> words{};
         if (!Read(node - HeaderSize, words.data(), sizeof(words))) {
-            if (scoped) { failure = "free-tree-node-unreadable"; valid = false; return; }
             continue;
         }
         ++visited;
         const u64 key = words[1] & SizeMask;
         if (key == 0 || key >= MaxBlockSize) {
             // Already corrupted: still keep what is left of it, but do not follow its links
-            if (scoped) { failure = "free-tree-size-invalid"; valid = false; return; }
             AddFreeBlock(node - HeaderSize);
             continue;
         }
@@ -194,16 +200,13 @@ void BpeHeapGuard::CollectFreeTree() {
             AddFreeBlock(member - HeaderSize);
             VAddr next = 0;
             if (!Read(member + 0x10, &next, sizeof(next))) {
-                if (scoped) { failure = "free-tree-ring-unreadable"; valid = false; return; }
                 break;
             }
             member = next;
         }
-        if (scoped && member != node) { failure = "free-tree-ring-invalid"; valid = false; return; }
         stack.push_back(words[2]);
         stack.push_back(words[3]);
     }
-    if (scoped && !stack.empty()) { failure = "free-tree-walk-limit"; valid = false; return; }
     std::sort(free_blocks.begin(), free_blocks.end());
     free_blocks.erase(std::unique(free_blocks.begin(), free_blocks.end()), free_blocks.end());
     free_spans.reserve(free_blocks.size());
@@ -273,19 +276,26 @@ std::vector<BpeHeapGuard::Span> BpeHeapGuard::CollectSpans(VAddr addr, VAddr end
         }
     }
     if (scoped) {
-        for (const auto& [base, bytes] : regions) {
+        for (size_t region_index = 0; region_index < regions.size(); ++region_index) {
+            const auto [base, bytes] = regions[region_index];
             if (base >= end || base + bytes <= addr) continue;
+            if (locked_batch && headers_ready[region_index]) {
+                for (const auto& span : scoped_headers[region_index])
+                    if (span.first < end && span.second > addr) spans.push_back(span);
+                continue;
+            }
+            std::vector<Span> headers;
             std::array<u64, 2> header{};
             if (!Read(base, header.data(), HeaderSize) || header[1] != 3) {
                 valid = false; return {};
             }
-            spans.emplace_back(base, base + HeaderSize);
+            headers.emplace_back(base, base + HeaderSize);
             VAddr previous = base, block = base + HeaderSize;
             bool terminal = false;
             for (size_t step = 0; step < MaxTreeNodes; ++step) {
                 if (!Contains(block, HeaderSize) ||
                     !Read(block, header.data(), HeaderSize) || header[0] != previous) break;
-                spans.emplace_back(block, block + HeaderSize);
+                headers.emplace_back(block, block + HeaderSize);
                 const u64 payload = header[1] & SizeMask;
                 if (!payload) {
                     terminal = header[1] == 1 && block + HeaderSize == base + bytes;
@@ -293,9 +303,26 @@ std::vector<BpeHeapGuard::Span> BpeHeapGuard::CollectSpans(VAddr addr, VAddr end
                 }
                 if (payload > bytes || block + HeaderSize > base + bytes ||
                     payload > base + bytes - block - HeaderSize) break;
+                // EU 1.01 +0x48fac sets bit 0 on allocation; +0x49492 clears
+                // it on free. A free block's first 40 payload bytes belong to
+                // allocator links, independent of its position in the free tree.
+                if (!(header[1] & 1))
+                    headers.emplace_back(block + HeaderSize,
+                        block + HeaderSize + std::min(payload, FreeNodeSize - HeaderSize));
+                // +0x49476 reads the allocation's trailing debug id when bit 2
+                // is set; these four bytes also belong to the CPU allocator.
+                if (header[1] & 4)
+                    headers.emplace_back(block + HeaderSize + payload - sizeof(u32),
+                                         block + HeaderSize + payload);
                 previous = block; block += HeaderSize + payload;
             }
             if (!terminal) { valid = false; return {}; }
+            for (const auto& span : headers)
+                if (span.first < end && span.second > addr) spans.push_back(span);
+            if (locked_batch) {
+                scoped_headers[region_index] = std::move(headers);
+                headers_ready[region_index] = true;
+            }
         }
     } else {
         CollectHeaders(addr, end, spans);

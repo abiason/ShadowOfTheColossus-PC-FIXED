@@ -31,10 +31,13 @@ public:
 
     using Region = std::pair<VAddr, u64>; // base, byte count
     // Caller must hold the allocator lock and keep mappings alive through TryWrite.
-    // No backing pointers or allocator metadata survive a scoped write.
+    // No backing pointers are retained. Metadata reuse requires UseLockedBatch.
     using Reader = bool (*)(void*, VAddr, void*, u64);
     BpeHeapGuard(Core::MemoryManager* memory, VAddr heap, std::span<const Region> regions,
                  Reader reader = nullptr, void* reader_context = nullptr);
+    // Caller must keep the same allocator lock and VMA pin until destruction.
+    // Reuses metadata only within this single locked callback, never across visits.
+    void UseLockedBatch() { locked_batch = true; }
     bool TryWrite(VAddr addr, const u8* data, u64 size, u64& kept);
     const char* LastFailure() const { return failure; }
 
@@ -63,6 +66,9 @@ private:
     void Refresh();
     std::vector<Region> regions;
     bool scoped = false;
+    bool locked_batch = false, batch_ready = false;
+    std::vector<std::vector<Span>> scoped_headers;
+    std::vector<bool> headers_ready;
     const char* failure = "none";
     Reader reader = nullptr;
     void* reader_context = nullptr;

@@ -113,6 +113,21 @@ int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t cla
     return functions[0]==image+0x48c80 && functions[1]==image+0x493d0;
 }
 
+static int compare_regions(const void *left, const void *right) {
+    const RuntimeHeapRegion *a=left,*b=right;
+    return (a->base>b->base)-(a->base<b->base);
+}
+static int sorted_disjoint(RuntimeHeapRegion *regions,size_t count) {
+    qsort(regions,count,sizeof(*regions),compare_regions);
+    for (size_t i=1;i<count;++i)
+        if (regions[i-1].base+regions[i-1].bytes>regions[i].base) return 0;
+    return 1;
+}
+static const RuntimeHeapRegion *find_region(const RuntimeHeapRegion *regions,size_t count,uint64_t base) {
+    const RuntimeHeapRegion key={.base=base};
+    return bsearch(&key,regions,count,sizeof(*regions),compare_regions);
+}
+
 /* Managed region list: generic allocation links descriptors at heap+0x38
  * (EU 1.01 +0x479ce); BPE obtains base/size from descriptor+0x60/+0x58
  * (+0x4898e). The external block path (+0x48a10) bypasses this list. */
@@ -144,10 +159,6 @@ int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *conte
         *status="range-invalid";
         if (base<0x100000000 || base>=(UINT64_C(1)<<40) || (base&0xffff) ||
             !bytes || (bytes&0xffff) || bytes>(UINT64_C(1)<<40)-base) return 0;
-        for (uint32_t j=0;j<i;++j) {
-            *status="ranges-overlap";
-            if (base<regions[j].base+regions[j].bytes && regions[j].base<base+bytes) return 0;
-        }
         regions[i]=(RuntimeHeapRegion){.descriptor=next,.base=base,.bytes=bytes};
         previous=next;
         next=word64(node+0x10);
@@ -156,6 +167,8 @@ int runtime_bpe_heap_regions(uintptr_t heap, RuntimeHeapReader read, void *conte
     if (next!=sentinel || word64(header+0x40)!=previous) return 0;
     *status="list-changed";
     if (!read(context,heap+0x38,after,sizeof(after)) || memcmp(after,header+0x38,sizeof(after))) return 0;
+    *status="ranges-overlap";
+    if (!sorted_disjoint(regions,expected)) return 0;
     *status="valid";
     *count=expected;
     return 1;
@@ -177,23 +190,26 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
     *status="region-head-unreadable";
     if (!read(context,heap+0xb8,&head,8)) return 0;
     size_t n=0,matched=0;
+    uint64_t seen[2048]={0};
     for (uint64_t base=head;base;) {
         *status="capacity-exceeded";
         if (n>=capacity || n>=1024) return 0;
         *status="region-address-invalid";
         if (base<0x100000000 || base>=(UINT64_C(1)<<40)-32 || (base&0xffff)) return 0;
-        for (size_t j=0;j<n;++j) {
-            *status="region-cycle";
-            if (regions[j].base==base) return 0;
-        }
+        size_t slot=(size_t)((base>>16)*UINT64_C(11400714819323198485))&2047;
+        while (seen[slot] && seen[slot]!=base) slot=(slot+1)&2047;
+        *status="region-cycle";
+        if (seen[slot]==base) return 0;
+        seen[slot]=base;
         uint64_t header[2];
         *status="region-header-unreadable";
         if (!read(context,(uintptr_t)base,header,sizeof(header))) return 0;
         *status="region-header-invalid";
         if (header[1]!=3) return 0;
         uint64_t bytes=0,descriptor=0;
-        for (size_t j=0;j<managed_count;++j) if (managed[j].base==base) {
-            bytes=managed[j].bytes; descriptor=managed[j].descriptor; ++matched; break;
+        const RuntimeHeapRegion *managed_region=find_region(managed,managed_count,base);
+        if (managed_region) {
+            bytes=managed_region->bytes; descriptor=managed_region->descriptor; ++matched;
         }
         if (!bytes) {
             uint64_t block=base+16,previous=base;
@@ -217,10 +233,6 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
         }
         *status="range-invalid";
         if ((bytes&0xffff) || bytes>(UINT64_C(1)<<40)-base) return 0;
-        for (size_t j=0;j<n;++j) {
-            *status="ranges-overlap";
-            if (base<regions[j].base+regions[j].bytes && regions[j].base<base+bytes) return 0;
-        }
         regions[n++]=(RuntimeHeapRegion){.descriptor=descriptor,.base=base,.bytes=bytes};
         base=header[0];
     }
@@ -228,6 +240,8 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
     if (matched!=managed_count) return 0;
     *status="region-head-changed";
     if (!read(context,heap+0xb8,&after,8) || after!=head) return 0;
+    *status="ranges-overlap";
+    if (!sorted_disjoint(regions,n)) return 0;
     *status="valid"; *count=n;
     return 1;
 }
@@ -285,6 +299,25 @@ static int guard_enabled;
 void runtime_memory_read_pin(void);
 void runtime_memory_read_unpin(void);
 
+/* Only used while runtime_memory_read_pin holds mappings stable. The backing
+ * view bypasses GPU page tracking; image reads retain the safe kernel reader. */
+static int guard_pinned_read(void *context,uintptr_t address,void *out,size_t size) {
+    const HeapWatch *state=context;
+    if (!size || address>UINTPTR_MAX-size) return 0;
+    if (address>=state->image && address-state->image<state->size)
+        return watch_read(context,address,out,size);
+    while (size) {
+        uintptr_t lo=0,hi=0; int mapped=0;
+        if (!runtime_memory_region(address,&lo,&hi,&mapped) || !mapped || address<lo || address>=hi) return 0;
+        const unsigned char *backing=runtime_memory_backing_pointer(address);
+        const size_t n=hi-address<size ? hi-address : size;
+        if (!backing) return 0;
+        memcpy(out,backing,n);
+        address+=n; out=(unsigned char *)out+n; size-=n;
+    }
+    return 1;
+}
+
 void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
     const char *enabled=getenv("SOTC_HEAP_GUARD_LINUX");
     guard_enabled=0;
@@ -320,17 +353,17 @@ void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) {
         }
         uint64_t current_class=0,current_mutex=0,table_entry=0;
         RuntimeHeapRegion regions[1024]; size_t count=0; const char *status;
-        if (watch_read(&guard_watch,s->address,&current_class,8) && current_class==s->class_address &&
-            watch_read(&guard_watch,s->address+0x70,&current_mutex,8) && current_mutex==mutex_address &&
-            watch_read(&guard_watch,guard_watch.image+0x2dfaab0+s->id*8,&table_entry,8) &&
+        if (guard_pinned_read(&guard_watch,s->address,&current_class,8) && current_class==s->class_address &&
+            guard_pinned_read(&guard_watch,s->address+0x70,&current_mutex,8) && current_mutex==mutex_address &&
+            guard_pinned_read(&guard_watch,guard_watch.image+0x2dfaab0+s->id*8,&table_entry,8) &&
             table_entry==s->address &&
-            runtime_bpe_all_regions(s->address,watch_read,&guard_watch,regions,1024,&count,&status)) {
+            runtime_bpe_all_regions(s->address,guard_pinned_read,&guard_watch,regions,1024,&count,&status)) {
             RuntimeGuardRegion ranges[1024];
             for (size_t j=0;j<count;++j) ranges[j]=(RuntimeGuardRegion){regions[j].base,regions[j].bytes};
             static unsigned long reports;
             if (__atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<4)
                 fprintf(stderr,"SOTC HEAP GUARD: locked heap %u, %zu regions\n",s->id,count);
-            visit(context,s->address,ranges,count,watch_read,&guard_watch);
+            visit(context,s->address,ranges,count,guard_pinned_read,&guard_watch);
         }
         __atomic_store_n(mutex,0,__ATOMIC_RELEASE);
         runtime_memory_read_unpin();

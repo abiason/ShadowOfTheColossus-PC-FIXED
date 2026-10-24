@@ -182,7 +182,13 @@ int main(int argc,char **argv) {
         memset(backings[0],0xab,16); memset(backings[1],0xcd,16);
         assert(watch_read(&state,Guest,out,32));
         for (size_t i=0;i<32;++i) assert(out[i]==(i<16 ? 0xcd : 0xab));
+        runtime_memory_read_pin();
+        assert(guard_pinned_read(&state,Guest,out,32));
+        for (size_t i=0;i<32;++i) assert(out[i]==(i<16 ? 0xcd : 0xab));
         hole=1;
+        assert(!guard_pinned_read(&state,Guest,out,32));
+        assert(!guard_pinned_read(&state,UINTPTR_MAX-1,out,32));
+        runtime_memory_read_unpin();
         assert(!watch_read(&state,Guest,out,32));
         hole=0; inaccessible=1;
         assert(!watch_read(&state,Guest,out,32));
@@ -310,6 +316,13 @@ int main(int argc,char **argv) {
         assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
         assert(count==1 && regions[0].descriptor==ARENA);
     } else if (!strcmp(argv[1],"guard")) {
+        unsetenv("SOTC_HEAP_GUARD_LINUX");
+        runtime_heap_guard_start(ClassImage,0x3000000);
+        assert(!guard_enabled);
+        setenv("SOTC_HEAP_GUARD_LINUX","0",1);
+        runtime_heap_guard_start(ClassImage,0x3000000);
+        assert(!guard_enabled);
+        unsetenv("SOTC_HEAP_GUARD_LINUX");
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;
         field(0,ClassTable); field(0x70,Guest);
         field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
