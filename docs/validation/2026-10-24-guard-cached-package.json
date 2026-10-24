@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-24",
+  "source_commit": "1fac4ecc123516f5be5e01c8aec6292ec61e5340",
+  "guard_default": "off",
+  "artifacts": [
+    {
+      "path": "out/preview-guard-cached-20261024/SotC-PC-1fac4ecc1235-x86_64.AppImage",
+      "sha256": "3e26380aa66c9b60c34a89d90444ee4778487c717b1801f3635d4665160ab9f6",
+      "bytes": 143084024
+    },
+    {
+      "path": "out/preview-guard-cached-20261024/SotC-PC-linux-x86_64-1fac4ecc1235-e5472a33a6a8.tar.gz",
+      "sha256": "616b908e79fe0d940b4a9855daea5d50b138d7eb69b3501815a1703fc6af2fb5",
+      "bytes": 57841567
+    }
+  ],
+  "native_archive_files_verified": 42,
+  "appimage_check": {
+    "python": "3.14.8",
+    "bundled_python": true,
+    "bundled_tk": true,
+    "bundled_pillow": true,
+    "gui_checked": true,
+    "game_started": false,
+    "data": "/tmp/sotc appimage check spaces klm7fb8u/data",
+    "appimage": "SotC-PC-1fac4ecc1235-x86_64.AppImage",
+    "sha256": "3e26380aa66c9b60c34a89d90444ee4778487c717b1801f3635d4665160ab9f6",
+    "image_unchanged": true
+  },
+  "gameplay_scope": "Two native-loader captures of 90 s tested cached-region handling and ordering; this AppImage check validates bundled runtime and hidden GUI, not gameplay of this new artifact.",
+  "local_only": true
+}

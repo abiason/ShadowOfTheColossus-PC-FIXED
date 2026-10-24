@@ -602,3 +602,14 @@ Os dados e limites do smoke test estão em
 `docs/validation/2026-10-24-guard-package.json`. Essa abertura curta não
 substitui gameplay prolongado do novo pacote nem valida a guarda opcional
 em colossos, pós-créditos, destruição de heaps ou regiões com donos aninhados.
+
+## Preview local do commit 1fac4ecc — 2026-10-24
+
+Artefatos atualizados com a reserva reciclável e o perfil opcional em
+`out/preview-guard-cached-20261024/`. Tarball: 42 arquivos e linkage
+verificados. AppImage: Python 3.14.8, Tk/Pillow embarcados, hashes e abertura
+gráfica oculta aprovados, sem iniciar jogo nessa checagem. Os testes de
+90 segundos desta etapa usaram o loader nativo; não confundir a checagem
+do AppImage com gameplay do novo artefato. A guarda continua desligada
+por padrão. Resumo e hashes em
+`docs/validation/2026-10-24-guard-cached-package.json`.
