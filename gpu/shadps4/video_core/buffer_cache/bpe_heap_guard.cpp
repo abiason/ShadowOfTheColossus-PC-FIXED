@@ -5,6 +5,9 @@
 #include <array>
 #include <bit>
 #include <cstring>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 
 #include "core/memory.h"
 #include "video_core/buffer_cache/bpe_heap_guard.h"
@@ -25,6 +28,33 @@ constexpr u64 MaxBlockSize = 0x100000000ULL;
 constexpr size_t MaxTreeNodes = 1 << 16;
 constexpr size_t MaxListNodes = 1 << 10;
 constexpr size_t MaxChainSteps = 1 << 12;
+struct GuardWriteProfile {
+    using Clock = std::chrono::steady_clock;
+    static bool Enabled() {
+        static const bool enabled = [] { const char* v = std::getenv("SOTC_HEAP_GUARD_PROFILE");
+                                         return v && std::strcmp(v, "1") == 0; }();
+        return enabled;
+    }
+    bool enabled = Enabled(), writing = false;
+    Clock::time_point start = enabled ? Clock::now() : Clock::time_point{}, write_start{};
+    void BeginWrite() { if (enabled) { writing = true; write_start = Clock::now(); } }
+    ~GuardWriteProfile() {
+        if (!enabled) return;
+        const auto now = Clock::now();
+        struct Totals { Clock::time_point start{}; u64 calls{}, metadata_ns{}, write_ns{}; };
+        static thread_local Totals totals;
+        if (totals.start == Clock::time_point{}) totals.start = start;
+        ++totals.calls;
+        totals.metadata_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            (writing ? write_start : now) - start).count();
+        if (writing) totals.write_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(now - write_start).count();
+        if (now - totals.start >= std::chrono::seconds(5)) {
+            std::fprintf(stderr, "SOTC GUARD WRITE PROFILE: calls=%llu metadata_ms=%.3f write_ms=%.3f\n",
+                static_cast<unsigned long long>(totals.calls), totals.metadata_ns/1e6, totals.write_ns/1e6);
+            totals = {.start = now};
+        }
+    }
+};
 } // namespace
 
 BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_)
@@ -39,16 +69,24 @@ BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_)
 }
 
 BpeHeapGuard::BpeHeapGuard(Core::MemoryManager* memory_, VAddr heap_,
-                           std::span<const Region> regions_, Reader reader_, void* context_)
-    : regions{regions_.begin(), regions_.end()}, scoped{true}, reader{reader_},
+                           std::span<const Region> regions_, Reader reader_, void* context_,
+                           std::span<const Region> cached_)
+    : regions{regions_.begin(), regions_.end()}, cached_regions{cached_.begin(), cached_.end()},
+      scoped{true}, reader{reader_},
       reader_context{context_}, memory{memory_}, heap{heap_} {
     if (!memory || !heap || heap > HeapPointerHi - 0x1000 || regions.empty()) return;
-    std::sort(regions.begin(), regions.end());
+    if (!std::is_sorted(regions.begin(),regions.end()))
+        std::sort(regions.begin(), regions.end());
     VAddr end = 0;
     for (const auto& [base, size] : regions) {
         if (base < HeapPointerLo || base >= HeapPointerHi || !size ||
             size > HeapPointerHi - base || base < end) return;
         end = base + size;
+    }
+    std::sort(cached_regions.begin(), cached_regions.end());
+    for (size_t i=0;i<cached_regions.size();++i) {
+        if (!std::binary_search(regions.begin(),regions.end(),cached_regions[i]) ||
+            (i && cached_regions[i]==cached_regions[i-1])) return;
     }
     valid = true;
 }
@@ -73,6 +111,7 @@ void BpeHeapGuard::Refresh() {
 }
 
 bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
+    GuardWriteProfile profile;
     kept = 0;
     failure = "arguments-or-guard-invalid";
     if (!scoped || !valid || !data || !size || size > HeapPointerHi ||
@@ -108,6 +147,7 @@ bool BpeHeapGuard::TryWrite(VAddr addr, const u8* data, u64 size, u64& kept) {
         cursor = hi;
     }
     failure = "backing-write-failed";
+    profile.BeginWrite();
     cursor = addr;
     for (const auto& [lo_, hi_] : spans) {
         const VAddr lo = std::max({lo_, addr, cursor}), hi = std::min(hi_, addr + size);
@@ -286,6 +326,18 @@ std::vector<BpeHeapGuard::Span> BpeHeapGuard::CollectSpans(VAddr addr, VAddr end
             }
             std::vector<Span> headers;
             std::array<u64, 2> header{};
+            if (std::binary_search(cached_regions.begin(),cached_regions.end(),Region{base,bytes})) {
+                if (!Read(base,header.data(),HeaderSize) || (header[1]&SizeMask)!=bytes || (header[1]&7)!=3) {
+                    valid=false; return {};
+                }
+                headers.emplace_back(base,base+HeaderSize);
+                if (base<end && base+HeaderSize>addr) spans.push_back(headers.front());
+                if (locked_batch) {
+                    scoped_headers[region_index]=std::move(headers);
+                    headers_ready[region_index]=true;
+                }
+                continue;
+            }
             if (!Read(base, header.data(), HeaderSize) || header[1] != 3) {
                 valid = false; return {};
             }

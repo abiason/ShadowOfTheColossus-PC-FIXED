@@ -34,7 +34,8 @@ public:
     // No backing pointers are retained. Metadata reuse requires UseLockedBatch.
     using Reader = bool (*)(void*, VAddr, void*, u64);
     BpeHeapGuard(Core::MemoryManager* memory, VAddr heap, std::span<const Region> regions,
-                 Reader reader = nullptr, void* reader_context = nullptr);
+                 Reader reader = nullptr, void* reader_context = nullptr,
+                 std::span<const Region> cached_regions = {});
     // Caller must keep the same allocator lock and VMA pin until destruction.
     // Reuses metadata only within this single locked callback, never across visits.
     void UseLockedBatch() { locked_batch = true; }
@@ -64,7 +65,7 @@ private:
 
     bool Contains(VAddr addr, u64 size) const;
     void Refresh();
-    std::vector<Region> regions;
+    std::vector<Region> regions, cached_regions;
     bool scoped = false;
     bool locked_batch = false, batch_ready = false;
     std::vector<std::vector<Span>> scoped_headers;

@@ -464,6 +464,44 @@ caminho sem guarda. Destruição de heaps e regiões com donos aninhados
 continuam pendentes de validação específica. Resumo em
 `docs/validation/2026-10-24-guard-physical.json`.
 
+### Reserva reciclável e perfil da guarda — 2026-10-24
+
+`SOTC_HEAP_GUARD_PROFILE=1` acrescenta tempos de parede por janela de cinco
+segundos: inventário, regiões, callback e total. O renderer separa preparação
+dos metadados e escrita. Relatórios por heap contam snapshots aceitos,
+rejeitados e mutex ocupado; skips anteriores à tentativa não estão incluídos.
+Sem essa opção, o perfil não lê relógios no caminho da guarda.
+
+A medição revelou `managed-region-missing` no heap 7 após cerca de 45 s:
+callbacks deixavam de ocorrer embora o renderer não registrasse rejeições.
+Logo, as capturas anteriores sem rejeição de escrita não comprovavam
+cobertura contínua. A análise das instruções +0x49560/+0x4959c e +0x48d87
+identificou uma reserva vazia em `heap+0xc8`, retirada da cadeia ativa +0xb8
+mas ainda presente na lista de descritores. Seu header +8 contém tamanho
+com flags 3 e é usado na próxima reutilização.
+
+O inventário agora distingue regiões ativas e essa reserva, exige descritor
+correspondente, tamanho e flags corretos, proíbe presença simultânea na
+cadeia ativa e relê as duas cabeças. Na reserva, preserva os primeiros
+16 bytes; não interpreta o corpo como cadeia física ativa. Uma cabeça que
+muda, região sem descritor ou tamanho inconsistente continua rejeitada.
+
+A lista gerenciada já ordenada é reutilizada; somente inclusões externas
+exigem nova ordenação e teste de sobreposição. O renderer também evita
+reordenar uma entrada já ordenada, mantendo a validação dos limites.
+
+Dois testes de 90 s após a correção mantiveram o heap 7 aceito além do
+ponto anterior de rejeição, sem falha fatal. A captura final teve média
+57,90 FPS (51,1–60). O tempo da guarda por chamada nas janelas reportadas
+caiu de aproximadamente 170,54 para 145,79 microssegundos, e o de descoberta
+de regiões de 115,67 para 95,06 microssegundos. Não são execuções controladas
+para medir ganho de FPS. A guarda segue opcional e desligada por padrão.
+
+Suíte SotC: 109 testes, 108 passaram e um skip no sandbox; os 13 testes
+do inventário passaram fora dele. Os 14 testes do loader e os fixtures C/C++
+com ASan/UBSan passaram. Evidências e limites em
+`docs/validation/2026-10-24-guard-cached.json`.
+
 ## Uso do inventário de heaps no Linux
 
 Com um build desta branch:

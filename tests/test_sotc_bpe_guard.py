@@ -1,5 +1,6 @@
 """Execute the actual scoped renderer guard against synthetic allocator memory."""
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,8 @@ class ScopedBpeGuardTests(unittest.TestCase):
                             str(ROOT / 'tests/test_bpe_heap_guard.cpp'),
                             str(ROOT / 'gpu/shadps4/video_core/buffer_cache/bpe_heap_guard.cpp'),
                             '-o', str(binary)], check=True, capture_output=True, text=True)
-            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn('BPE scoped readback guard: PASS', result.stdout)
+            for profile in ('0', '1'):
+                result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10,
+                                        env={**os.environ, 'SOTC_HEAP_GUARD_PROFILE': profile})
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('BPE scoped readback guard: PASS', result.stdout)

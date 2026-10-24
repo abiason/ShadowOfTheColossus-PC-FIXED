@@ -983,13 +983,17 @@ void BufferCache::ApplyDownloads(std::span<const ReadbackItem> pending, const u8
             auto& ctx = *static_cast<Context*>(opaque);
             struct ReadContext { RuntimeGuardRead read; void* context; } reader{read, read_context};
             try {
-                std::vector<BpeHeapGuard::Region> regions;
-                for (size_t i = 0; i < count; ++i) regions.emplace_back(ranges[i].base, ranges[i].bytes);
+                std::vector<BpeHeapGuard::Region> regions, cached;
+                for (size_t i = 0; i < count; ++i) {
+                    regions.emplace_back(ranges[i].base, ranges[i].bytes);
+                    if (ranges[i].flags & RUNTIME_GUARD_REGION_CACHED)
+                        cached.emplace_back(ranges[i].base,ranges[i].bytes);
+                }
                 BpeHeapGuard guard{ctx.memory, heap, regions,
                     [](void* p, VAddr addr, void* out, u64 size) {
                         auto& r = *static_cast<ReadContext*>(p);
                         return r.read(r.context, addr, out, size) != 0;
-                    }, &reader};
+                    }, &reader, cached};
                 if (!guard.IsValid()) return;
                 guard.UseLockedBatch();
                 for (auto& piece : ctx.pieces) for (const auto& [base, bytes] : regions) {

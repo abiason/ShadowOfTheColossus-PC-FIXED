@@ -6,7 +6,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct { uint64_t base, bytes; } RuntimeGuardRegion;
+enum { RUNTIME_GUARD_REGION_CACHED = 1 };
+typedef struct { uint64_t base, bytes; uint32_t flags; } RuntimeGuardRegion;
 typedef int (*RuntimeGuardRead)(void *, uintptr_t, void *, size_t);
 typedef void (*RuntimeGuardVisit)(void *, uintptr_t, const RuntimeGuardRegion *, size_t,
                                   RuntimeGuardRead, void *);

@@ -28,8 +28,10 @@ size_t runtime_page_pool_inventory(uintptr_t root_pointer, RuntimeHeapReader rea
  * Classification only; it does not establish a contiguous guarded range. */
 int runtime_heap_is_bpe_class(uintptr_t image, uint64_t image_size, uint64_t class_address,
                               RuntimeHeapReader read, void *context);
+enum { RUNTIME_HEAP_REGION_CACHED = 1 };
 typedef struct {
     uint64_t descriptor, base, bytes;
+    uint32_t flags;
 } RuntimeHeapRegion;
 /* Returns only complete, structurally consistent managed-descriptor lists.
  * Externally supplied blocks may exist outside this list; an empty list does

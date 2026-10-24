@@ -109,6 +109,17 @@ int main() {
     assert(cycle.TryWrite(Base, gpu.data(), gpu.size(), kept));
     assert(kept == peers * stride + 48);
     assert(get(first + stride + 32) == first + stride + 16); // Preserve, never follow, peer links.
+    reset();
+    put(Base+8,region.size()+3); // Cached empty reserve stores its full size here.
+    VideoCore::BpeHeapGuard cached{memory,Heap,regions,nullptr,nullptr,regions};
+    assert(cached.TryWrite(Base,gpu.data(),gpu.size(),kept));
+    assert(kept==16 && get(Base+8)==region.size()+3 && region[16]==0xa5);
+    reset(); put(Base+8,0x20003); writes=0;
+    VideoCore::BpeHeapGuard wrong_cached{memory,Heap,regions,nullptr,nullptr,regions};
+    assert(!wrong_cached.TryWrite(Base,gpu.data(),gpu.size(),kept) && writes==0);
+    const std::array<VideoCore::BpeHeapGuard::Region,1> unknown{{{Base+0x20000,0x10000}}};
+    VideoCore::BpeHeapGuard unknown_cached{memory,Heap,regions,nullptr,nullptr,unknown};
+    assert(!unknown_cached.IsValid());
     const std::array<VideoCore::BpeHeapGuard::Region, 2> overlap{{{Base, 0x10000}, {Base + 0x8000, 0x10000}}};
     VideoCore::BpeHeapGuard bad_ranges{memory, Heap, overlap};
     assert(!bad_ranges.IsValid());

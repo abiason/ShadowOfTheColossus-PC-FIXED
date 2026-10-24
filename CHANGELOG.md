@@ -53,6 +53,11 @@
   física. Escritas scoped confirmadas em execução; teste de dez minutos
   sem rejeição ou falha fatal registrada. Desempenho e ciclo de vida dos
   heaps ainda impedem habilitação por padrão.
+- Guarda reconhece a reserva reciclável em `heap+0xc8`, evitando desativação
+  do snapshot após carregamentos. Valida e preserva seu header de tamanho;
+  perfil opcional por fase/heap e remoção de ordenação redundante. Dois
+  testes de 90 segundos mantiveram snapshots aceitos no ponto antes rejeitado;
+  a opção continua experimental e desligada por padrão.
 - Escopo e pendências: [integração seletiva](docs/sotc/INTEGRACAO-AJNC-V060.md).
 
 ## 0.59.1-linux.4 — 2026-10-22 (AppImage/Latest)

@@ -327,5 +327,6 @@
     "Extended physical run still shows material FPS drops; keep experimental option off by default.",
     "Busy/invalid heaps use unguarded path; heap destruction and nested ownership require dedicated validation.",
     "Logged kept bytes count only CPU/GPU differences, not all metadata skipped."
-  ]
+  ],
+  "later_finding": "Subsequent per-heap profiling found managed-region-missing snapshot failures after ~45s, before renderer callbacks. No renderer rejection in these historical logs did not establish continuous guard coverage. Cached-region handling is documented in 2026-10-24-guard-cached.json."
 }

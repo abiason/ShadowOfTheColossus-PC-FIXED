@@ -186,14 +186,17 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
     if (status) *status="arguments-invalid";
     if (!regions || !capacity || !count || !status) return 0;
     if (!runtime_bpe_heap_regions(heap,read,context,managed,1024,&managed_count,status)) return 0;
-    uint64_t head=0,after=0;
+    *status="capacity-exceeded";
+    if (managed_count>capacity) return 0;
+    memcpy(regions,managed,managed_count*sizeof(*regions));
+    uint64_t head=0,after=0,cached=0,cached_after=0;
     *status="region-head-unreadable";
-    if (!read(context,heap+0xb8,&head,8)) return 0;
-    size_t n=0,matched=0;
+    if (!read(context,heap+0xb8,&head,8) || !read(context,heap+0xc8,&cached,8)) return 0;
+    size_t n=managed_count,matched=0,chain_count=0;
     uint64_t seen[2048]={0};
     for (uint64_t base=head;base;) {
         *status="capacity-exceeded";
-        if (n>=capacity || n>=1024) return 0;
+        if (chain_count++>=1024) return 0;
         *status="region-address-invalid";
         if (base<0x100000000 || base>=(UINT64_C(1)<<40)-32 || (base&0xffff)) return 0;
         size_t slot=(size_t)((base>>16)*UINT64_C(11400714819323198485))&2047;
@@ -233,15 +236,39 @@ int runtime_bpe_all_regions(uintptr_t heap, RuntimeHeapReader read, void *contex
         }
         *status="range-invalid";
         if ((bytes&0xffff) || bytes>(UINT64_C(1)<<40)-base) return 0;
-        regions[n++]=(RuntimeHeapRegion){.descriptor=descriptor,.base=base,.bytes=bytes};
+        if (!managed_region) {
+            *status="capacity-exceeded";
+            if (n>=capacity || n>=1024) return 0;
+            regions[n++]=(RuntimeHeapRegion){.descriptor=descriptor,.base=base,.bytes=bytes};
+        }
         base=header[0];
+    }
+    /* +0x4959c retains one empty managed region in heap+0xc8 after
+     * unlinking it from +0xb8. +0x48d87 consumes its encoded size on reuse. */
+    if (cached) {
+        const RuntimeHeapRegion *region=find_region(managed,managed_count,cached);
+        *status="cached-region-unmanaged";
+        if (!region) return 0;
+        size_t slot=(size_t)((cached>>16)*UINT64_C(11400714819323198485))&2047;
+        while (seen[slot] && seen[slot]!=cached) slot=(slot+1)&2047;
+        *status="cached-region-also-active";
+        if (seen[slot]==cached) return 0;
+        uint64_t header[2];
+        *status="cached-region-header-invalid";
+        if (!read(context,(uintptr_t)cached,header,sizeof(header)) ||
+            (header[1]&~UINT64_C(7))!=region->bytes || (header[1]&7)!=3) return 0;
+        regions[region-managed].flags=RUNTIME_HEAP_REGION_CACHED;
+        ++matched;
     }
     *status="managed-region-missing";
     if (matched!=managed_count) return 0;
     *status="region-head-changed";
-    if (!read(context,heap+0xb8,&after,8) || after!=head) return 0;
+    if (!read(context,heap+0xb8,&after,8) || after!=head ||
+        !read(context,heap+0xc8,&cached_after,8) || cached_after!=cached) return 0;
     *status="ranges-overlap";
-    if (!sorted_disjoint(regions,n)) return 0;
+    // Managed descriptors were already sorted and checked by the inventory.
+    // Only external additions require another overlap check and merge sort.
+    if (n>managed_count && !sorted_disjoint(regions,n)) return 0;
     *status="valid"; *count=n;
     return 1;
 }
@@ -295,7 +322,18 @@ static int watch_read(void *context, uintptr_t address, void *out, size_t size) 
 }
 
 static HeapWatch guard_watch;
-static int guard_enabled;
+static int guard_enabled, guard_profile;
+typedef struct {
+    uint64_t start,visits,inventory_ns,snapshot_ns,callback_ns,total_ns;
+    uint64_t ok[SOTC_HEAP_SLOTS],failed[SOTC_HEAP_SLOTS],busy[SOTC_HEAP_SLOTS];
+    const char *reason[SOTC_HEAP_SLOTS];
+} GuardProfile;
+static _Thread_local GuardProfile guard_timing;
+static uint64_t guard_clock(void) {
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC,&now);
+    return (uint64_t)now.tv_sec*1000000000+(uint64_t)now.tv_nsec;
+}
 void runtime_memory_read_pin(void);
 void runtime_memory_read_unpin(void);
 
@@ -321,6 +359,8 @@ static int guard_pinned_read(void *context,uintptr_t address,void *out,size_t si
 void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
     const char *enabled=getenv("SOTC_HEAP_GUARD_LINUX");
     guard_enabled=0;
+    const char *profile=getenv("SOTC_HEAP_GUARD_PROFILE");
+    guard_profile=profile && !strcmp(profile,"1");
     if (!enabled || strcmp(enabled,"1") || !image || size<0x2dfca78+8 ||
         size>UINTPTR_MAX-image) return;
     guard_watch=(HeapWatch){.image=image,.size=size,.read_host=host_read};
@@ -331,9 +371,11 @@ void runtime_heap_guard_start(uintptr_t image, uint64_t size) {
 
 void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) {
     if (!guard_enabled || !visit) return;
+    const uint64_t visit_start=guard_profile ? guard_clock() : 0;
     RuntimeHeapSample heaps[SOTC_HEAP_SLOTS];
     const size_t n=runtime_heap_inventory(guard_watch.image+0x2dfaab0,watch_read,&guard_watch,
                                          heaps,SOTC_HEAP_SLOTS);
+    if (guard_profile) guard_timing.inventory_ns+=guard_clock()-visit_start;
     for (size_t i=0;i<n;++i) {
         const RuntimeHeapSample *s=&heaps[i];
         if (!s->readable || !runtime_heap_is_bpe_class(guard_watch.image,guard_watch.size,
@@ -349,24 +391,54 @@ void runtime_heap_guard_visit(RuntimeGuardVisit visit, void *context) {
         uint64_t expected=0;
         if (!mutex || !__atomic_compare_exchange_n(mutex,&expected,UINT64_MAX,0,
                                                     __ATOMIC_ACQUIRE,__ATOMIC_RELAXED)) {
+            if (guard_profile) ++guard_timing.busy[s->id];
             runtime_memory_read_unpin(); continue;
         }
         uint64_t current_class=0,current_mutex=0,table_entry=0;
-        RuntimeHeapRegion regions[1024]; size_t count=0; const char *status;
-        if (guard_pinned_read(&guard_watch,s->address,&current_class,8) && current_class==s->class_address &&
+        RuntimeHeapRegion regions[1024]; size_t count=0; const char *status="identity-changed";
+        const uint64_t snapshot_start=guard_profile ? guard_clock() : 0;
+        const int ready=guard_pinned_read(&guard_watch,s->address,&current_class,8) && current_class==s->class_address &&
             guard_pinned_read(&guard_watch,s->address+0x70,&current_mutex,8) && current_mutex==mutex_address &&
             guard_pinned_read(&guard_watch,guard_watch.image+0x2dfaab0+s->id*8,&table_entry,8) &&
             table_entry==s->address &&
-            runtime_bpe_all_regions(s->address,guard_pinned_read,&guard_watch,regions,1024,&count,&status)) {
+            runtime_bpe_all_regions(s->address,guard_pinned_read,&guard_watch,regions,1024,&count,&status);
+        if (guard_profile) {
+            guard_timing.snapshot_ns+=guard_clock()-snapshot_start;
+            if (ready) ++guard_timing.ok[s->id];
+            else { ++guard_timing.failed[s->id]; guard_timing.reason[s->id]=status; }
+        }
+        if (ready) {
             RuntimeGuardRegion ranges[1024];
-            for (size_t j=0;j<count;++j) ranges[j]=(RuntimeGuardRegion){regions[j].base,regions[j].bytes};
+            for (size_t j=0;j<count;++j) ranges[j]=(RuntimeGuardRegion){regions[j].base,regions[j].bytes,regions[j].flags};
             static unsigned long reports;
             if (__atomic_fetch_add(&reports,1,__ATOMIC_RELAXED)<4)
                 fprintf(stderr,"SOTC HEAP GUARD: locked heap %u, %zu regions\n",s->id,count);
+            const uint64_t callback_start=guard_profile ? guard_clock() : 0;
             visit(context,s->address,ranges,count,guard_pinned_read,&guard_watch);
+            if (guard_profile) guard_timing.callback_ns+=guard_clock()-callback_start;
         }
         __atomic_store_n(mutex,0,__ATOMIC_RELEASE);
         runtime_memory_read_unpin();
+    }
+    if (guard_profile) {
+        const uint64_t now=guard_clock();
+        if (!guard_timing.start) guard_timing.start=visit_start;
+        ++guard_timing.visits;
+        guard_timing.total_ns+=now-visit_start;
+        if (now-guard_timing.start>=UINT64_C(5000000000)) {
+            fprintf(stderr,"SOTC GUARD PROFILE: window_ms=%.1f visits=%" PRIu64
+                    " inventory_ms=%.3f regions_ms=%.3f callback_ms=%.3f total_ms=%.3f\n",
+                    (now-guard_timing.start)/1e6,guard_timing.visits,
+                    guard_timing.inventory_ns/1e6,guard_timing.snapshot_ns/1e6,
+                    guard_timing.callback_ns/1e6,guard_timing.total_ns/1e6);
+            for (unsigned id=0;id<SOTC_HEAP_SLOTS;++id)
+                if (guard_timing.ok[id] || guard_timing.failed[id] || guard_timing.busy[id])
+                    fprintf(stderr,"SOTC GUARD HEAP PROFILE: heap=%u ok=%" PRIu64
+                            " failed=%" PRIu64 " busy=%" PRIu64 " reason=%s\n",id,
+                            guard_timing.ok[id],guard_timing.failed[id],guard_timing.busy[id],
+                            guard_timing.reason[id] ? guard_timing.reason[id] : "none");
+            guard_timing=(GuardProfile){.start=now};
+        }
     }
 }
 
@@ -403,7 +475,9 @@ static void *watch_main(void *unused) {
                 if (valid) {
                     uint64_t total=0;
                     for (size_t j=0;j<count;++j) total+=regions[j].bytes;
-                    fprintf(stderr," region_bytes=%" PRIu64,total);
+                    size_t cached_count=0;
+                    for (size_t j=0;j<count;++j) cached_count+=(regions[j].flags&RUNTIME_HEAP_REGION_CACHED)!=0;
+                    fprintf(stderr," region_bytes=%" PRIu64 " cached_regions=%zu",total,cached_count);
                     for (size_t j=0;j<count && j<4;++j)
                         fprintf(stderr," region%zu=%#" PRIx64 "+%#" PRIx64,
                                 j,regions[j].base,regions[j].bytes);

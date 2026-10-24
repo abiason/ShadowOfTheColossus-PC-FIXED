@@ -5,10 +5,10 @@
 
 enum { TABLE=0x20000, OBJECT=0x30000, BITMAP=0x40000, ARENA=0x50000 };
 static uint64_t table[SOTC_HEAP_SLOTS], bitmap[1024];
-static unsigned char object[0xc0], pools[SOTC_PAGE_POOLS][0xa0];
+static unsigned char object[0xd0], pools[SOTC_PAGE_POOLS][0xa0];
 static unsigned char external[0x20000];
 static const uint64_t External=UINT64_C(0x100000000);
-static int read_calls, fail_second_chunk, mutate_list;
+static int read_calls, fail_second_chunk, mutate_list, mutate_cached, cached_reads;
 static const uintptr_t ClassImage=0x100000, ClassTable=0x1695b70;
 static uint64_t class_functions[2];
 static void field(size_t at,uint64_t value) { memcpy(object+at,&value,8); }
@@ -32,6 +32,8 @@ static int fixture_read(void *context,uintptr_t address,void *out,size_t size) {
     if (!source) return 0;
     memcpy(out,source,size);
     if (mutate_list && address==OBJECT+0x38 && size==0x28) ((unsigned char *)out)[0]^=1;
+    if (mutate_cached && address==OBJECT+0xc8 && size==8 && ++cached_reads==2)
+        ((unsigned char *)out)[2]^=1;
     return 1;
 }
 static RuntimeHeapSample snapshot(void) {
@@ -287,6 +289,14 @@ int main(int argc,char **argv) {
         assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
         assert(count==2 && regions[0].base==External && regions[1].bytes==0x10000);
         assert(!regions[0].descriptor && !regions[1].descriptor);
+        uint64_t mixed[13]={0};
+        mixed[0]=ARENA; mixed[1]=OBJECT+0x38; mixed[2]=OBJECT+0x38; mixed[3]=OBJECT+0x38;
+        mixed[11]=0x10000; mixed[12]=External;
+        memcpy(pools[0],mixed,sizeof(mixed));
+        field(0x40,ARENA); field(0x48,ARENA); field(0x58,1);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==2 && regions[0].descriptor==ARENA && !regions[1].descriptor);
+        field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0);
         assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,1,&count,&status));
         assert(!count && !strcmp(status,"capacity-exceeded"));
         external[0x10000]=1;
@@ -315,6 +325,43 @@ int main(int argc,char **argv) {
         memset(external,0,8); field(0xb8,External);
         assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
         assert(count==1 && regions[0].descriptor==ARENA);
+    } else if (!strcmp(argv[1],"cached")) {
+        RuntimeHeapRegion regions[2]; size_t count; const char *status;
+        const uint64_t sentinel=OBJECT+0x38;
+        field(0x40,ARENA+0xa0); field(0x48,ARENA); field(0x58,2);
+        field(0xb8,External); field(0xc8,External+0x10000);
+        for (size_t i=0;i<2;++i) {
+            uint64_t node[13]={0};
+            node[0]=ARENA+i*0xa0; node[1]=i ? ARENA : sentinel;
+            node[2]=i ? sentinel : ARENA+0xa0; node[3]=sentinel;
+            node[11]=0x10000; node[12]=External+i*0x10000;
+            memcpy(pools[i],node,sizeof(node));
+        }
+        uint64_t header[2]={0,3}; memcpy(external,header,16);
+        header[1]=0x10003; memcpy(external+0x10000,header,16);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(count==2 && !regions[0].flags && regions[1].flags==RUNTIME_HEAP_REGION_CACHED);
+        mutate_cached=1; cached_reads=0;
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"region-head-changed")); mutate_cached=0;
+        header[1]=0x20003; memcpy(external+0x10000,header,16);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"cached-region-header-invalid"));
+        field(0xc8,External);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"cached-region-also-active"));
+        field(0xc8,External+0x20000);
+        assert(!runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,2,&count,&status));
+        assert(!count && !strcmp(status,"cached-region-unmanaged"));
+        uint64_t only[13]={0};
+        only[0]=ARENA; only[1]=sentinel; only[2]=sentinel; only[3]=sentinel;
+        only[11]=0x10000; only[12]=External+0x10000;
+        memcpy(pools[0],only,sizeof(only));
+        field(0x40,ARENA); field(0x48,ARENA); field(0x58,1);
+        field(0xb8,0); field(0xc8,External+0x10000);
+        header[1]=0x10003; memcpy(external+0x10000,header,16);
+        assert(runtime_bpe_all_regions(OBJECT,fixture_read,NULL,regions,1,&count,&status));
+        assert(count==1 && regions[0].flags==RUNTIME_HEAP_REGION_CACHED);
     } else if (!strcmp(argv[1],"guard")) {
         unsetenv("SOTC_HEAP_GUARD_LINUX");
         runtime_heap_guard_start(ClassImage,0x3000000);
@@ -327,7 +374,7 @@ int main(int argc,char **argv) {
         field(0,ClassTable); field(0x70,Guest);
         field(0x40,OBJECT+0x38); field(0x48,OBJECT+0x38); field(0x58,0); field(0xb8,0);
         guard_watch=(HeapWatch){.image=ClassImage,.size=0x3000000,.read_host=fixture_host_read};
-        guard_enabled=1;
+        guard_enabled=1; guard_profile=1; guard_timing=(GuardProfile){0};
         runtime_heap_guard_visit(guarded_visit,NULL);
         assert(callbacks==1 && pins==0);
         uint64_t mutex=123; memcpy(backings[1],&mutex,8);
@@ -345,6 +392,10 @@ int main(int argc,char **argv) {
         guard_enabled=1; field(0x70,0);
         runtime_heap_guard_visit(guarded_visit,NULL);
         assert(callbacks==1 && pins==0);
+        assert(guard_timing.visits==4);
+        guard_timing.start=guard_clock()-UINT64_C(5000000000);
+        runtime_heap_guard_visit(guarded_visit,NULL);
+        assert(guard_timing.visits==0 && callbacks==1 && pins==0);
     } else if (!strcmp(argv[1],"class")) {
         const uint64_t image_size=0x2000000;
         class_functions[0]=ClassImage+0x48c80; class_functions[1]=ClassImage+0x493d0;

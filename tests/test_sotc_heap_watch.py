@@ -25,6 +25,8 @@ class HeapWatchTests(unittest.TestCase):
         if name == 'kernel' and result.returncode == 77:
             self.skipTest(result.stderr.strip())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        if name == 'guard':
+            self.assertIn('SOTC GUARD PROFILE:', result.stderr)
 
     def test_valid_inventory_and_read_only_snapshot(self):
         self.run_case('valid')
@@ -58,6 +60,9 @@ class HeapWatchTests(unittest.TestCase):
 
     def test_guard_holds_mapping_pin_and_allocator_lock_and_skips_busy_heap(self):
         self.run_case('guard')
+
+    def test_cached_region_is_accounted_separately_from_active_chain(self):
+        self.run_case('cached')
 
     def test_kernel_reader_integration_when_permitted(self):
         self.run_case('kernel')
