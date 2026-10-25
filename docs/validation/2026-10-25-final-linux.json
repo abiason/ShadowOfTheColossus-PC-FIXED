@@ -1,0 +1,480 @@
+{
+  "date": "2026-10-25",
+  "source_commit": "0c2caab5a799a871555aa10cf5ab527678520a75",
+  "completion_scope": "local stable default-profile package; experimental Linux heap guard is not declared complete",
+  "distribution": "Linux/CachyOS x86_64 for current host ABI; not universal Linux compatibility",
+  "published_remotely": false,
+  "guard_default": "off",
+  "stable_start_script_forces_guard_off": true,
+  "artifacts": [
+    {
+      "path": "out/final-linux-20261024/Iniciar-SotC.sh",
+      "sha256": "c0336e667316a2c4e2579614a1a245453d553bab42b8a3f8d06e1e4268788e09",
+      "bytes": 205
+    },
+    {
+      "path": "out/final-linux-20261024/SotC-PC-0c2caab5a799-x86_64.AppImage",
+      "sha256": "ba5ed52f8f52f70c15e4ba5edb620d86def7265da6275b93f8d2821fda400768",
+      "bytes": 143092216
+    },
+    {
+      "path": "out/final-linux-20261024/SotC-PC-linux-x86_64-0c2caab5a799-a1239a1ea3a7.tar.gz",
+      "sha256": "44cc5b8066d2f3f02ff1e3382d738565c137c7f6873c75206ed3ec047d1cfe68",
+      "bytes": 57877230
+    }
+  ],
+  "build_flags": {
+    "BB_PGO": "off",
+    "BB_LTO": "OFF"
+  },
+  "native_package_files_verified": 42,
+  "suite": {
+    "total": 116,
+    "passed": 116,
+    "skipped": 0,
+    "scope": "test_sotc_*.py outside sandbox, including real process_vm_readv integration"
+  },
+  "packaged_loader_tests": {
+    "scope": "loader tests against actual relocated tarball executable",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "successful": true
+  },
+  "appimage_integrity_and_hidden_gui_check": {
+    "python": "3.14.8",
+    "bundled_python": true,
+    "bundled_tk": true,
+    "bundled_pillow": true,
+    "gui_checked": true,
+    "game_started": false,
+    "data": "/tmp/sotc appimage check spaces u7cqlzxw/data",
+    "appimage": "SotC-PC-0c2caab5a799-x86_64.AppImage",
+    "sha256": "ba5ed52f8f52f70c15e4ba5edb620d86def7265da6275b93f8d2821fda400768",
+    "image_unchanged": true
+  },
+  "actual_appimage_gameplay": {
+    "entry": "actual AppImage --appimage-extract-and-run, launcher Play and Stop buttons",
+    "image_unchanged": true,
+    "source_saves_unchanged": true,
+    "both_profiles_used_identical_initial_saves": true,
+    "embedded_binary_sha256": "2a4274fd8ab42226a417880048ab6ff4909d1e025f02f7aef95fdc4e2d84f8ff",
+    "runs": [
+      {
+        "profile_fps": 30,
+        "guard_enabled": false,
+        "play_invoked": true,
+        "stop_invoked": true,
+        "samples": 36,
+        "fps_mean": 29.9,
+        "fps_min": 28.1,
+        "fps_max": 30.0,
+        "fps_samples": [
+          [
+            28.1,
+            5
+          ],
+          [
+            29.3,
+            10
+          ],
+          [
+            30.0,
+            15
+          ],
+          [
+            30.0,
+            20
+          ],
+          [
+            30.0,
+            25
+          ],
+          [
+            29.5,
+            30
+          ],
+          [
+            30.0,
+            35
+          ],
+          [
+            30.0,
+            40
+          ],
+          [
+            30.0,
+            45
+          ],
+          [
+            30.0,
+            50
+          ],
+          [
+            30.0,
+            55
+          ],
+          [
+            30.0,
+            60
+          ],
+          [
+            30.0,
+            65
+          ],
+          [
+            30.0,
+            70
+          ],
+          [
+            30.0,
+            75
+          ],
+          [
+            30.0,
+            80
+          ],
+          [
+            30.0,
+            85
+          ],
+          [
+            30.0,
+            90
+          ],
+          [
+            30.0,
+            95
+          ],
+          [
+            30.0,
+            101
+          ],
+          [
+            30.0,
+            106
+          ],
+          [
+            30.0,
+            111
+          ],
+          [
+            30.0,
+            116
+          ],
+          [
+            30.0,
+            121
+          ],
+          [
+            30.0,
+            126
+          ],
+          [
+            30.0,
+            131
+          ],
+          [
+            30.0,
+            136
+          ],
+          [
+            30.0,
+            141
+          ],
+          [
+            30.0,
+            146
+          ],
+          [
+            30.0,
+            151
+          ],
+          [
+            29.4,
+            156
+          ],
+          [
+            30.0,
+            161
+          ],
+          [
+            30.0,
+            166
+          ],
+          [
+            30.0,
+            171
+          ],
+          [
+            30.0,
+            176
+          ],
+          [
+            30.0,
+            181
+          ]
+        ],
+        "exit_code": -15,
+        "session_events": [
+          {
+            "schema": 1,
+            "time": "2026-10-25T04:03:01.445+00:00",
+            "elapsed_s": 183.101,
+            "session": "5614214f8d25442ca2b13ab56bf77fda",
+            "pid": 1213497,
+            "event": "stop_requested"
+          },
+          {
+            "schema": 1,
+            "time": "2026-10-25T04:03:02.057+00:00",
+            "elapsed_s": 183.714,
+            "session": "5614214f8d25442ca2b13ab56bf77fda",
+            "pid": 1213497,
+            "event": "process_exit",
+            "code": -15,
+            "outcome": "stopped"
+          }
+        ],
+        "launcher_ready_after_stop": true,
+        "audio_nonzero_windows": [
+          "Audio stats port 1: 941 buffers/5s (expected 937), max gap 5.41 ms, min queued 0 bytes, starved 2",
+          "Audio stats port 0: 942 buffers/5s (expected 937), max gap 8.21 ms, min queued 0 bytes, starved 1",
+          "Audio stats port 17: 941 buffers/5s (expected 937), max gap 5.40 ms, min queued 0 bytes, starved 2"
+        ],
+        "fatal_markers": [],
+        "process_evidence": {
+          "pid": 1213500,
+          "exe": "/tmp/appimage_extracted_980d03afbac51027c990240a611cd1ad/usr/share/sotc/bin/bb-probe",
+          "sha256": "2a4274fd8ab42226a417880048ab6ff4909d1e025f02f7aef95fdc4e2d84f8ff",
+          "environment": {
+            "SOTC_APPIMAGE": "1",
+            "SOTC_USER_DIR": "/home/deck/Projetos/ShadowOfTheColossus-PC-FIXED/out/validacao-final-appimage/30/user",
+            "SOTC_MODES": "af16",
+            "BB_FPS_LIMIT": "30",
+            "BB_VBLANK_HZ": "60",
+            "BB_DMEM_MB": "5376",
+            "SOTC_HEAP_GUARD_LINUX": "0"
+          }
+        }
+      },
+      {
+        "profile_fps": 60,
+        "guard_enabled": false,
+        "play_invoked": true,
+        "stop_invoked": true,
+        "samples": 36,
+        "fps_mean": 58.49,
+        "fps_min": 41.6,
+        "fps_max": 60.0,
+        "fps_samples": [
+          [
+            53.7,
+            5
+          ],
+          [
+            60.0,
+            10
+          ],
+          [
+            60.0,
+            15
+          ],
+          [
+            60.0,
+            20
+          ],
+          [
+            60.0,
+            25
+          ],
+          [
+            57.2,
+            30
+          ],
+          [
+            60.0,
+            35
+          ],
+          [
+            59.8,
+            40
+          ],
+          [
+            60.0,
+            45
+          ],
+          [
+            60.0,
+            50
+          ],
+          [
+            60.0,
+            55
+          ],
+          [
+            60.0,
+            60
+          ],
+          [
+            60.0,
+            65
+          ],
+          [
+            60.0,
+            70
+          ],
+          [
+            59.7,
+            75
+          ],
+          [
+            60.0,
+            80
+          ],
+          [
+            60.0,
+            85
+          ],
+          [
+            60.0,
+            90
+          ],
+          [
+            60.0,
+            95
+          ],
+          [
+            59.4,
+            100
+          ],
+          [
+            60.0,
+            105
+          ],
+          [
+            60.0,
+            110
+          ],
+          [
+            60.0,
+            115
+          ],
+          [
+            60.0,
+            120
+          ],
+          [
+            60.0,
+            125
+          ],
+          [
+            60.0,
+            130
+          ],
+          [
+            59.6,
+            135
+          ],
+          [
+            54.7,
+            140
+          ],
+          [
+            58.9,
+            145
+          ],
+          [
+            60.0,
+            150
+          ],
+          [
+            54.9,
+            155
+          ],
+          [
+            41.6,
+            160
+          ],
+          [
+            60.0,
+            165
+          ],
+          [
+            59.5,
+            170
+          ],
+          [
+            58.0,
+            175
+          ],
+          [
+            48.6,
+            180
+          ]
+        ],
+        "exit_code": -15,
+        "session_events": [
+          {
+            "schema": 1,
+            "time": "2026-10-25T04:06:05.891+00:00",
+            "elapsed_s": 182.603,
+            "session": "4609a4b5597040c4a5e923229c6aded1",
+            "pid": 1214548,
+            "event": "stop_requested"
+          },
+          {
+            "schema": 1,
+            "time": "2026-10-25T04:06:06.522+00:00",
+            "elapsed_s": 183.234,
+            "session": "4609a4b5597040c4a5e923229c6aded1",
+            "pid": 1214548,
+            "event": "process_exit",
+            "code": -15,
+            "outcome": "stopped"
+          }
+        ],
+        "launcher_ready_after_stop": true,
+        "audio_nonzero_windows": [
+          "Audio stats port 1: 941 buffers/5s (expected 937), max gap 5.51 ms, min queued 0 bytes, starved 2",
+          "Audio stats port 0: 942 buffers/5s (expected 937), max gap 8.90 ms, min queued 0 bytes, starved 1",
+          "Audio stats port 17: 941 buffers/5s (expected 937), max gap 5.50 ms, min queued 0 bytes, starved 2"
+        ],
+        "fatal_markers": [],
+        "process_evidence": {
+          "pid": 1214551,
+          "exe": "/tmp/appimage_extracted_980d03afbac51027c990240a611cd1ad/usr/share/sotc/bin/bb-probe",
+          "sha256": "2a4274fd8ab42226a417880048ab6ff4909d1e025f02f7aef95fdc4e2d84f8ff",
+          "environment": {
+            "SOTC_APPIMAGE": "1",
+            "SOTC_USER_DIR": "/home/deck/Projetos/ShadowOfTheColossus-PC-FIXED/out/validacao-final-appimage/60/user",
+            "SOTC_MODES": "af16,fps60game",
+            "BB_FPS_LIMIT": "60",
+            "BB_VBLANK_HZ": "60",
+            "BB_DMEM_MB": "5376",
+            "SOTC_HEAP_GUARD_LINUX": "0"
+          }
+        }
+      }
+    ]
+  },
+  "prior_manual_validation": {
+    "evidence": "out/teste-gameplay-preview-atual/resultado-colossos-final-60fps.json",
+    "climbing_and_jumping": "confirmed normal by user in earlier 1800-second stable-profile native capture",
+    "postcredits": "confirmed normal by user in that earlier capture",
+    "new_manual_confirmation_for_this_package": false,
+    "scope_note": "Recent guard changes are opt-in and inactive in the stable profile; earlier manual confirmation is not represented as a new package test"
+  },
+  "remaining_experimental_work": [
+    "Persistent lock contention still falls back to unprotected baseline readback when guard is enabled",
+    "Allocator destruction during callback still needs real lifetime-contract validation",
+    "Fresh colossus/postcredits manual validation required before declaring the experimental guard ready"
+  ],
+  "limits": [
+    "FPS are interval means, not per-frame percentiles",
+    "New GUI captures are automatic attract-demo smoke/regression tests, not full playthroughs",
+    "Audio queue starvation counters were nonzero in some windows; there is no new human listening confirmation",
+    "No remote release or public compatibility certification is claimed"
+  ]
+}

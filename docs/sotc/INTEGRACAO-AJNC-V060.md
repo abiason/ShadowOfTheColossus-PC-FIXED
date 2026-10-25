@@ -786,3 +786,41 @@ permaneceram iguais. Há contadores de starvation de áudio não nulos, sem
 confirmação auditiva humana. Não comparar a média de quatro minutos com uma
 captura curta como se fossem o mesmo percurso; não houve dupla A/B desta
 mudança. Evidências em `docs/validation/2026-10-24-guard-retry.json`.
+
+
+## Entrega local do perfil estável — 2026-10-25
+
+Concluídos o build nativo e o empacotamento local do perfil padrão, com guarda
+experimental desligada. Artefatos em `out/final-linux-20261024/`, código do
+commit `0c2caab5a799`. Não se declara concluída a guarda opcional nem toda a
+lista de integrações futuras da upstream. Nenhum artefato foi publicado.
+
+A suíte final fora do sandbox aprovou os 116 testes, sem skips, incluindo a
+leitura real de memória pelo kernel. O tarball verificou 42 arquivos e linkage;
+os 14 testes do loader passaram contra seu executável extraído/relocado.
+O AppImage passou na integridade de todos os arquivos, Python/Tk/Pillow
+embarcados e abertura gráfica oculta. Além dessa checagem, a entrada real
+`--appimage-extract-and-run` abriu o launcher, acionou Jogar, iniciou o binário
+embarcado e encerrou pelo botão Parar nos dois perfis, retornando ao estado
+pronto. A identidade do binário em execução corresponde ao manifesto do
+AppImage, sem substituir pelo binário de desenvolvimento.
+
+Cada perfil teve 36 amostras, até aproximadamente 180 segundos: média 29,90 FPS
+em 30 (intervalos de 28,1 a 30) e 58,49 em 60 (41,6 a 60). São médias de
+intervalos e capturas automáticas da demonstração, não percentis por frame ou
+nova passagem manual por colossos/pós-créditos. Saídas -15 foram solicitadas
+pelo botão Parar e registradas pelo launcher como `stopped`, não crashes.
+Não houve assinatura de crash registrada. Filas de áudio tiveram alguns
+contadores de starvation; não há nova confirmação auditiva humana.
+
+Cópias de saves iniciais idênticas foram usadas nas duas execuções. Os saves
+de origem e o AppImage permaneceram iguais. As confirmações anteriores do
+usuário para escalada/saltos e pós-créditos permanecem atribuídas à captura
+nativa estável anterior de 1800 segundos, não a este novo pacote. As mudanças
+recentes da guarda são opt-in e estão inativas no perfil entregue.
+
+`Iniciar-SotC.sh` abre o AppImage sem exigir FUSE e força a guarda desligada;
+`LEIA-ME.txt`, `FINAL-VALIDACAO.json` e `SHA256SUMS` acompanham a entrega. Os oito
+arquivos listados no checksum final passaram. Compatibilidade é a do build
+CachyOS x86_64 deste host, sem certificação universal para outras distribuições.
+Relatório versionado: `docs/validation/2026-10-25-final-linux.json`.
