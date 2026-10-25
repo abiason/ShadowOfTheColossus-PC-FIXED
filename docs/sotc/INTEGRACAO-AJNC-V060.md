@@ -824,3 +824,13 @@ recentes da guarda são opt-in e estão inativas no perfil entregue.
 arquivos listados no checksum final passaram. Compatibilidade é a do build
 CachyOS x86_64 deste host, sem certificação universal para outras distribuições.
 Relatório versionado: `docs/validation/2026-10-25-final-linux.json`.
+
+### Confirmação manual da entrega — 2026-10-25
+
+Depois de solicitar a abertura do pacote estável, o usuário confirmou
+funcionamento normal ("tudo ok") e, após a indicação da validação restante
+em colossos e pós-créditos, confirmou "tudo ok também". Essa confirmação
+completa a aceitação manual do perfil estável deste pacote; duração e rota
+não foram medidas. Não é evidência da guarda experimental, que permaneceu
+desligada. O relatório final e os checksums da entrega foram atualizados,
+sem alterar AppImage ou tarball.

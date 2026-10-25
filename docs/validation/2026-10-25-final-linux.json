@@ -469,12 +469,20 @@
   "remaining_experimental_work": [
     "Persistent lock contention still falls back to unprotected baseline readback when guard is enabled",
     "Allocator destruction during callback still needs real lifetime-contract validation",
-    "Fresh colossus/postcredits manual validation required before declaring the experimental guard ready"
+    "Current stable-profile manual confirmation does not validate the experimental guard; guard-enabled gameplay validation remains required"
   ],
   "limits": [
     "FPS are interval means, not per-frame percentiles",
     "New GUI captures are automatic attract-demo smoke/regression tests, not full playthroughs",
-    "Audio queue starvation counters were nonzero in some windows; there is no new human listening confirmation",
+    "Audio queue starvation counters were nonzero in some windows; these counters describe the earlier automated captures, separate from the later user confirmation",
     "No remote release or public compatibility certification is claimed"
-  ]
+  ],
+  "manual_validation_current_package": {
+    "date": "2026-10-25",
+    "source": "user confirmation in this conversation after opening the stable package",
+    "general_operation": "confirmed normal by user: tudo ok",
+    "colossi_and_postcredits": "confirmed normal by user: tudo ok tamb\u00e9m, in response to the remaining colossus/postcredits validation",
+    "guard_enabled": false,
+    "duration_and_route_not_measured": true
+  }
 }
