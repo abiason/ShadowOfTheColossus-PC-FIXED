@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-25",
+  "status": "closed and accepted by user",
+  "scope": "local stable default-profile package; experimental Linux heap guard is not declared complete",
+  "manual_acceptance_commit": "b4e9e615",
+  "package_source_commit": "0c2caab5a799a871555aa10cf5ab527678520a75",
+  "files": {
+    "APPIMAGE-BUNDLE.json": "475780492f022ca1ce706469d7c6145e21d0561acccc924bc041b7aeec0da6d8",
+    "FINAL-VALIDACAO.json": "90947cd69a6700c1a0f105d0114c67602ed761c1a87b80bb89fe41d32fc75bc2",
+    "Iniciar-SotC.sh": "c0336e667316a2c4e2579614a1a245453d553bab42b8a3f8d06e1e4268788e09",
+    "LEIA-ME.txt": "4eb94e34b02701cb3f35c38e15d746487ad7c510efc4be8c78daf7f85c7f8faf",
+    "SHA256SUMS": "4030c2205d3c7046bb0a716a57f39889f73ce17768d0bfce30da6bb8e78cd4b4",
+    "SotC-PC-0c2caab5a799-x86_64.AppImage": "ba5ed52f8f52f70c15e4ba5edb620d86def7265da6275b93f8d2821fda400768",
+    "SotC-PC-linux-x86_64-0c2caab5a799-a1239a1ea3a7.tar.gz": "44cc5b8066d2f3f02ff1e3382d738565c137c7f6873c75206ed3ec047d1cfe68",
+    "appimage-verification.json": "5b7534b21c1ab916e93233c65e7c7084c0e596778aaf7d4dd5d9cf850f752b6f",
+    "build-provenance.json": "5ae975490bd78f2ea21903f3d7ada8e57d71945869331bf9e6c5ca886a24f7ae"
+  },
+  "next_stage": "experimental Linux heap guard: diagnose persistent contention and allocator lifetime",
+  "experimental_guard_accepted_as_complete": false
+}
