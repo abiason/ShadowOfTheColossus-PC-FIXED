@@ -1,0 +1,11 @@
+{
+  "release": "https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/releases/tag/v0.59.1-linux.7",
+  "tag": "v0.59.1-linux.7",
+  "source_commit": "6dc7647f26743deeb2232748193ec798636897f8",
+  "latest": true,
+  "all_asset_digests_verified": true,
+  "checksum_file_verified": true,
+  "archive_source_and_release_notes_verified": true,
+  "ci_run": "https://github.com/abiason/ShadowOfTheColossus-PC-FIXED/actions/runs/40341377333",
+  "gameplay_retested_on_published_binaries": false
+}
