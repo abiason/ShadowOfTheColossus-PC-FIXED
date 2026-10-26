@@ -1,6 +1,19 @@
 # Changelog
 
-## Em desenvolvimento — estabilidade AjncSystem 0.60
+## 0.59.1-linux.5 — 2026-10-26 (estabilidade)
+
+- Readbacks especulativos antigos desligados por padrão e correção de atomics
+  float min/max, com cache de shaders atualizado.
+- CPU cedida em rodadas sem progresso no processador de comandos.
+- Leitura de estatísticas de texturas robusta a remapeamentos, lacunas e overflow.
+- Alvo interno `fps60game` no launcher, com validação dos bytes originais.
+- Histórico de sessões com configuração, desempenho, encerramento e erros.
+- Pacotes nativo/AppImage gerados e verificados pelo workflow Linux.
+- Guarda Linux experimental permanece desligada; os avanços CLEAN posteriores
+  ficam adiados. Sem nova certificação de campanha completa/pós-créditos.
+- Detalhes: [notas da release](docs/releases/v0.59.1-linux.5.md).
+
+## Histórico técnico — integração seletiva AjncSystem 0.60
 
 - Guarda Linux experimental tenta recuperar contenção transitória em até três
   tentativas, liberando locks e pin antes de ceder execução. Inventário refeito
