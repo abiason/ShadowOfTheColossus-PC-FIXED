@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 BINARY = Path(__file__).resolve().parents[1] / 'out/gpu/sotc-cp-wait-test'
@@ -22,7 +23,12 @@ class CommandProcessorWaitTests(unittest.TestCase):
         command = [str(BINARY), mode, 'on' if enabled else 'off']
         if one_cpu:
             command.append('one-cpu')
-        result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
+        # libbbgpu initializes user paths before main. Own an existing root;
+        # a fresh CI environment need not have HOME/.local/share available.
+        with tempfile.TemporaryDirectory(prefix='sotc-cp-user-') as user_dir:
+            env['BB_GPU_USER_DIR'] = user_dir
+            env['XDG_DATA_HOME'] = str(Path(user_dir) / 'missing-xdg-parent')
+            result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
         if one_cpu and result.returncode == 77:
             self.skipTest('The environment does not permit selecting one CPU')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
