@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.59.1-linux.6 — 2026-10-26 (estabilidade)
+## 0.59.1-linux.7 — 2026-10-26 (estabilidade)
 
 - Readbacks especulativos antigos desligados por padrão e correção de atomics
   float min/max, com cache de shaders atualizado.
@@ -9,10 +9,11 @@
 - Alvo interno `fps60game` no launcher, com validação dos bytes originais.
 - Histórico de sessões com configuração, desempenho, encerramento e erros.
 - Pacotes nativo/AppImage gerados e verificados pelo workflow Linux.
-- Fixture de filas isolada de HOME/XDG do runner; a candidata linux.5 não foi publicada.
+- Fixture de filas isolada de HOME/XDG do runner; as candidatas linux.5/6 não foram publicadas.
+- Empacotador inclui automaticamente as notas de release versionadas.
 - Guarda Linux experimental permanece desligada; os avanços CLEAN posteriores
   ficam adiados. Sem nova certificação de campanha completa/pós-créditos.
-- Detalhes: [notas da release](docs/releases/v0.59.1-linux.6.md).
+- Detalhes: [notas da release](docs/releases/v0.59.1-linux.7.md).
 
 ## Histórico técnico — integração seletiva AjncSystem 0.60
 

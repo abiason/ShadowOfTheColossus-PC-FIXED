@@ -37,8 +37,7 @@ LICENSES = ('gpu/shadps4/LICENSE', 'gpu/third_party/imgui/LICENSE.txt',
             'gpu/third_party/fsr-vulkan/upstream/ffx-1.1.4/sdk/LICENSE.txt')
 OPTIONAL = ('packaging/linux/README.md', 'docs/sotc/README-Linux-CachyOS-RDNA4.md',
             'docs/sotc/INTEGRACAO-AJNC-V060.md',
-            'docs/releases/v0.59.1-linux.2.md', 'docs/releases/v0.59.1-linux.3.md',
-            'docs/releases/v0.59.1-linux.4.md', 'launcher/sotc.png', 'launcher/sotc.ico')
+            'launcher/sotc.png', 'launcher/sotc.ico')
 WRAPPER = '''#!/bin/sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -115,6 +114,10 @@ def package(root=ROOT, output=None, allow_dirty_fsr=False,
     if fsr_status and not allow_dirty_fsr and patch_state is None:
         raise ValueError('Dirty FSR refused; --allow-dirty-fsr permits a private preview only')
     selected = dict(FILES)
+    # Publish reads the current tag's notes from the verified archive. Include
+    # tracked release notes instead of freezing an allowlist at an old version.
+    for relative in git(root, 'ls-files', '--', 'docs/releases/*.md').splitlines():
+        selected[relative] = relative
     for relative in OPTIONAL:
         if (root / relative).exists() or (root / relative).is_symlink():
             selected[relative] = relative

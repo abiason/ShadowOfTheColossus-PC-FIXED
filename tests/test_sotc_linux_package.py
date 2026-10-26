@@ -70,6 +70,27 @@ class PackageTests(unittest.TestCase):
         self.assertNotEqual(archive, pkg.package(self.root, archive.parent))
         self.assertTrue(archive.is_file())
 
+    def test_current_versioned_release_notes_are_included_but_untracked_notes_are_not(self):
+        tracked = 'docs/releases/v9.99-linux.99.md'
+        untracked = 'docs/releases/local-private.md'
+        for name in (tracked, untracked):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('release fixture')
+        original = pkg.git.side_effect
+        def git_with_notes(root, *args):
+            if args == ('ls-files', '--', 'docs/releases/*.md'):
+                return tracked
+            return original(root, *args)
+        pkg.git.side_effect = git_with_notes
+        archive = pkg.package(self.root)
+        with tarfile.open(archive) as tar:
+            names = tar.getnames()
+            self.assertTrue(any(name.endswith('/' + tracked) for name in names))
+            self.assertFalse(any(name.endswith('/' + untracked) for name in names))
+            manifest = json.load(tar.extractfile(next(name for name in names if name.endswith('/MANIFEST.json'))))
+            self.assertIn(tracked, manifest['sha256'])
+
     def test_packaged_launcher_imports_its_event_module_without_checkout_paths(self):
         names = ('sotc_launcher.py', 'sotc_launcher_win.py', 'sotc_events.py')
         source = Path(__file__).resolve().parents[1] / 'launcher'
